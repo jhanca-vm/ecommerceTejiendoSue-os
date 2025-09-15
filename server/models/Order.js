@@ -13,7 +13,11 @@ const shippingInfoSchema = new mongoose.Schema(
 
 const orderItemSchema = new mongoose.Schema(
   {
-    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+    },
     quantity: { type: Number, required: true, min: 1 },
     size: { type: mongoose.Schema.Types.ObjectId, ref: "Size" },
     color: { type: mongoose.Schema.Types.ObjectId, ref: "Color" },
@@ -27,6 +31,7 @@ const orderItemSchema = new mongoose.Schema(
 const orderSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    idempotencyKey: { type: String, default: null, index: true },
     items: { type: [orderItemSchema], default: [] },
     total: { type: Number, required: true, min: 0 },
     status: {
@@ -47,5 +52,12 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.index({ "items.product": 1, createdAt: -1 });
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index(
+  { user: 1, idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { idempotencyKey: { $type: "string" } },
+  }
+);
 
 module.exports = mongoose.model("Order", orderSchema);

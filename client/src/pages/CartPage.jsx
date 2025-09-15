@@ -47,7 +47,9 @@ function useProductsMap(ids, token) {
       setLoading(true);
       try {
         // 1) Intento bulk con ARRAY en params (NADA de join(","))
-        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const headers = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined;
         try {
           const r = await apiUrl.get("products/bulk", {
             params: { ids: unique }, // 👈 clave del cambio
@@ -203,12 +205,20 @@ const CartPage = () => {
     setLoading(true);
     try {
       const items = toOrderItems();
+      const idem =
+        crypto?.randomUUID?.() ||
+        `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
       // ⚠️ El backend calcula total y controla stock; aquí sólo enviamos items + shippingInfo
       const { data } = await apiUrl.post(
         `orders`,
-        { items, shippingInfo },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { items, shippingInfo, idempotencyKey: idem, source: "cart" },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Idempotency-Key": idem,
+          },
+        }
       );
 
       const order = data.order;

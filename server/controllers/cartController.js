@@ -1,7 +1,7 @@
 const { Cart, clampQty } = require("../models/Cart");
-const Product = require("../models/product"); 
-const Size = require("../models/size");
-const Color = require("../models/color");
+const Product = require("../models/Product"); 
+const Size = require("../models/Size");
+const Color = require("../models/Color");
 
 // Helpers de validación básica de ObjectId
 const isObjectId = (v) => typeof v === "string" && /^[0-9a-fA-F]{24}$/.test(v);

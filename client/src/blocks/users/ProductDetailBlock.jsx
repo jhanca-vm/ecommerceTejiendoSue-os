@@ -7,8 +7,11 @@ import { AuthContext } from "../../contexts/AuthContext";
 import { useToast } from "../../contexts/ToastContext";
 import ProductPriceBlock from "../ProductPrice";
 import FavoriteButton from "./FavoriteButton";
+import CheckoutModal from "../users/CheckoutModal"; 
 
-/* =============== Helpers =============== */
+/* ================= Helpers y utilidades ================= */
+const ADMIN_WHATSAPP = "573147788069";
+
 const idVal = (x) =>
   typeof x === "object" && x?._id ? String(x._id) : String(x || "");
 
@@ -102,7 +105,7 @@ const MiniCard = ({ item }) => {
   );
 };
 
-/* =============== Componente principal =============== */
+/* ================= Componente principal ================= */
 const ProductDetailBlock = ({
   product,
   onAddToCart,
@@ -123,7 +126,7 @@ const ProductDetailBlock = ({
 
   const baseUrl = getBaseUrl();
 
-  const { user } = useContext(AuthContext);
+  const { user, token } = useContext(AuthContext); // ⬅️ token para comprar
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -261,7 +264,7 @@ const ProductDetailBlock = ({
     return Array.from(map.values());
   };
 
-  /* ----- Carrito ----- */
+  /* ----- Carrito (agregar) ----- */
   const handleAdd = () => {
     if (!user || user.role === "admin") {
       showToast("Debes iniciar sesión como usuario para comprar", "warning");
@@ -287,6 +290,110 @@ const ProductDetailBlock = ({
     const cartItem = { ...product, size: sizeObj, color: colorObj };
     onAddToCart(cartItem, quantity);
     showToast("Producto agregado al carrito", "success");
+  };
+
+  /* ----- Comprar ahora ----- */
+  const [openBuyNow, setOpenBuyNow] = useState(false);
+  const [loadingBuyNow, setLoadingBuyNow] = useState(false);
+
+  const fmtCOP = (n) =>
+    Number(n || 0).toLocaleString("es-CO", {
+      style: "currency",
+      currency: "COP",
+      maximumFractionDigits: 0,
+    });
+
+  const buildWhatsAppText = (order, shippingInfo) => {
+    const lines = [];
+    lines.push("*Nuevo pedido*");
+    lines.push(`ID: ${order._id}`);
+    lines.push(`Cliente: ${user?.name || "N/A"} (${user?.email || ""})`);
+    if (shippingInfo) {
+      lines.push(
+        `Envío: ${shippingInfo.fullName} | Tel: ${shippingInfo.phone}`
+      );
+      lines.push(`${shippingInfo.address}, ${shippingInfo.city}`);
+      if (shippingInfo.notes) lines.push(`Notas: ${shippingInfo.notes}`);
+    }
+    lines.push("");
+    lines.push("*Detalle:*");
+    (order.items || []).forEach((it) => {
+      const name = it?.product?.name || "Producto";
+      const size = it?.size?.label ? ` / Talla: ${it.size.label}` : "";
+      const color = it?.color?.name ? ` / Color: ${it.color.name}` : "";
+      const line = Number(it.unitPrice || 0) * Number(it.quantity || 0) || 0;
+      lines.push(`- ${name}${size}${color} x${it.quantity} = ${fmtCOP(line)}`);
+    });
+    lines.push("");
+    lines.push(`*Total:* ${fmtCOP(order.total)}`);
+    return encodeURIComponent(lines.join("\n"));
+  };
+
+  const handleBuyNow = () => {
+    if (!user || user.role === "admin") {
+      showToast("Debes iniciar sesión como usuario para comprar", "warning");
+      return navigate("/login");
+    }
+    if (!selectedSize || !selectedColor) {
+      showToast("Debes seleccionar talla y color", "warning");
+      return;
+    }
+    const variant = product.variants.find(
+      (v) => idVal(v.size) === selectedSize && idVal(v.color) === selectedColor
+    );
+    if (!variant) return showToast("Variante no disponible", "error");
+    if (variant.stock < quantity)
+      return showToast("Stock insuficiente", "error");
+    setOpenBuyNow(true);
+  };
+
+  const confirmBuyNow = async (shippingInfo) => {
+    setLoadingBuyNow(true);
+    try {
+      const idem =
+        crypto?.randomUUID?.() ||
+        `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+      const items = [
+        {
+          product: product._id,
+          size: selectedSize,
+          color: selectedColor,
+          quantity: Number(quantity) || 1,
+        },
+      ];
+
+      const { data } = await apiUrl.post(
+        "orders",
+        { items, shippingInfo, idempotencyKey: idem },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Idempotency-Key": idem,
+          },
+        }
+      );
+
+      const order = data.order;
+      const text = buildWhatsAppText(order, shippingInfo);
+      window.open(
+        `https://wa.me/${ADMIN_WHATSAPP}?text=${text}`,
+        "_blank",
+        "noopener,noreferrer"
+      );
+
+      showToast("Pedido realizado exitosamente", "success");
+      navigate("/my-orders");
+    } catch (err) {
+      showToast(
+        "Error al realizar el pedido: " +
+          (err?.response?.data?.error || "Intenta más tarde."),
+        "error"
+      );
+    } finally {
+      setLoadingBuyNow(false);
+      setOpenBuyNow(false);
+    }
   };
 
   /* ----- Precio ----- */
@@ -423,7 +530,7 @@ const ProductDetailBlock = ({
       if (resp?.data?.stats) setStats(resp.data.stats);
       // Limpiar y refrescar
       setMyText("");
-      setMyRating(5); // <-- Aquí se resetea la calificación seleccionada
+      setMyRating(5);
       setFiles([]);
       await fetchReviews();
       showToast("¡Gracias! Tu reseña ha sido guardada.", "success");
@@ -599,10 +706,10 @@ const ProductDetailBlock = ({
               </button>
               <button
                 className="btn btn--ghost"
-                onClick={() => showToast("Compra directa próximamente", "info")}
+                onClick={handleBuyNow}
                 type="button"
               >
-                Comprar ahora
+                {loadingBuyNow ? "Procesando..." : "Comprar ahora"}
               </button>
             </div>
 
@@ -880,6 +987,13 @@ const ProductDetailBlock = ({
           </div>
         )}
       </div>
+
+      {/* Modal de “Comprar ahora” */}
+      <CheckoutModal
+        open={openBuyNow}
+        onClose={() => setOpenBuyNow(false)}
+        onConfirm={confirmBuyNow}
+      />
     </div>
   );
 };

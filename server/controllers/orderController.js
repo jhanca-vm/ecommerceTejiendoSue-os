@@ -23,12 +23,36 @@ function effectivePrice(product) {
   }
 }
 
-/** ========================== CREATE (sin transacciones) ========================== */
+/** ========================== CREATE (sin transacciones) ==========================
+ *  - Sin usar $gte en filtros de update.
+ *  - Decrementa con $inc y luego verifica que no quedó negativo.
+ *  - Idempotencia opcional vía header "Idempotency-Key" o body.idempotencyKey
+ *    (para deduplicar doble clics / reintentos desde el front).
+ */
 exports.createOrder = async (req, res) => {
-  // NOTA: mantenemos compensación por si algún ítem posterior falla
   const compensations = [];
   try {
     const { items, shippingInfo } = req.body;
+
+    // Idempotencia (opcional pero recomendado)
+    const idempotencyKey =
+      (req.get("Idempotency-Key") || req.body?.idempotencyKey || "").trim() ||
+      null;
+
+    if (idempotencyKey) {
+      const existing = await Order.findOne({
+        user: req.user.id,
+        idempotencyKey,
+      });
+      if (existing) {
+        return res
+          .status(200)
+          .json({
+            orderId: existing._id,
+            order: serializeOrderForUser(existing),
+          });
+      }
+    }
 
     if (!Array.isArray(items) || items.length === 0) {
       return res
@@ -67,7 +91,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // (opcional pero recomendado) Deduplicar líneas iguales sumando cantidades
+    // Deduplicar líneas por variante sumando cantidades
     const dedup = new Map();
     for (const it of normalizedItems) {
       const key = itemKey(it);
@@ -82,7 +106,7 @@ exports.createOrder = async (req, res) => {
     const itemsToSave = [];
 
     for (const it of itemsToProcess) {
-      // 1) Traer sólo la variante exacta (para snapshot + precio)
+      // 1) Traer solo la variante exacta (NO usamos $gte en ningún lado)
       const prodDoc = await Product.findOne(
         {
           _id: it.product,
@@ -105,7 +129,7 @@ exports.createOrder = async (req, res) => {
         );
       }
 
-      // 2) Decremento SIN $gte (evita mismatch de tipos en DB)
+      // 2) Decremento SIN $gte (evita problemas de casteo y tipos en DB)
       const dec = await Product.updateOne(
         {
           _id: it.product,
@@ -116,11 +140,10 @@ exports.createOrder = async (req, res) => {
       );
 
       if (!dec.modifiedCount) {
-        // No matcheó el elemento (IDs/campos no coinciden)
         throw new Error(`Stock insuficiente (carrera) para ${prodDoc.name}.`);
       }
 
-      // 3) Verifica que no quedó negativo (si en DB había string y otra carrera, aquí lo detectamos)
+      // 3) Verificar que no haya quedado negativo; si queda < 0, revertimos inmediatamente
       const checkDoc = await Product.findOne(
         {
           _id: it.product,
@@ -132,7 +155,6 @@ exports.createOrder = async (req, res) => {
 
       const stockAfter = Number(checkDoc?.variants?.[0]?.stock) || 0;
       if (stockAfter < 0) {
-        // Revertir inmediato este ítem y abortar
         await Product.updateOne(
           {
             _id: it.product,
@@ -152,7 +174,7 @@ exports.createOrder = async (req, res) => {
         qty: it.quantity,
       });
 
-      // 5) Precio unitario (aplica descuento si tu modelo lo calcula)
+      // 5) Precio unitario (aplica descuento si el modelo lo calcula)
       const unitPrice = effectivePrice(prodDoc);
       total += unitPrice * it.quantity;
 
@@ -170,6 +192,7 @@ exports.createOrder = async (req, res) => {
     // 6) Crear la orden
     const order = await Order.create({
       user: req.user.id,
+      idempotencyKey: idempotencyKey || null, // <- se guarda si viene
       items: itemsToSave,
       total: Number(total.toFixed(2)),
       status: "pendiente",
@@ -183,7 +206,9 @@ exports.createOrder = async (req, res) => {
     });
 
     clearDashboardCache();
-    return res.status(201).json({ orderId: order._id, order });
+    return res
+      .status(201)
+      .json({ orderId: order._id, order: serializeOrderForUser(order) });
   } catch (err) {
     // COMPENSACIÓN: restituye todo lo decrementado si falló algo
     for (const c of compensations) {
@@ -266,10 +291,10 @@ exports.updateOrderStatus = async (req, res) => {
     const prevStatus = order.status;
     order.status = String(status);
 
-    // ✅ Consideramos "facturado" como "pago confirmado"
+    // Consideramos "facturado" como "pago confirmado"
     const becomesPaid = status === "facturado";
 
-    // Solo incrementar una vez en la vida de la orden
+    // Sólo incrementar una vez en la vida de la orden
     if (becomesPaid && !order.wasCountedForBestsellers) {
       for (const item of order.items) {
         if (item.product && item.quantity > 0) {
@@ -325,7 +350,6 @@ exports.getMyOrderById = async (req, res) => {
       .populate({ path: "items.color", select: "name" });
 
     if (!order) return res.status(404).json({ error: "Pedido no encontrado" });
-    // seguridad: solo dueño puede ver
     if (String(order.user) !== String(req.user.id)) {
       return res.status(403).json({ error: "No autorizado" });
     }
@@ -338,12 +362,6 @@ exports.getMyOrderById = async (req, res) => {
 };
 
 /** ========================== UPDATE (ADMIN) ========================== */
-/**
- * Edita ítems y metadatos.
- * - Ajusta stock por diferencia (transacción).
- * - Ítem nuevo: unitPrice actual + crea snapshots.
- * - Ítem existente: preserva unitPrice y snapshots.
- */
 exports.updateOrder = async (req, res) => {
   const { id } = req.params;
   const {
@@ -356,7 +374,7 @@ exports.updateOrder = async (req, res) => {
   } = req.body;
 
   try {
-    // ====== GUARD: si NO hay cambios de items y SÍ hay cambios de metadatos → update simple SIN transacción ======
+    // Si NO hay cambios de items y SÍ hay cambios de metadatos → update simple SIN transacción
     const isItemsChange = Array.isArray(items);
     const isMetaChange =
       typeof status !== "undefined" ||
@@ -376,7 +394,6 @@ exports.updateOrder = async (req, res) => {
       if (typeof adminComment !== "undefined")
         $set.adminComment = String(adminComment || "");
 
-      // Normaliza shippingInfo por campos (no pisa con undefined)
       if (shippingInfo && typeof shippingInfo === "object") {
         if ("fullName" in shippingInfo)
           $set["shippingInfo.fullName"] = String(shippingInfo.fullName || "");
@@ -402,12 +419,11 @@ exports.updateOrder = async (req, res) => {
       return res.json({ message: "Pedido actualizado", order: updated });
     }
 
-    // Si tampoco hay metadatos ni items → nada que actualizar
     if (!isItemsChange && !isMetaChange) {
       return res.status(400).json({ error: "No hay cambios para aplicar" });
     }
 
-    // ====== AQUI SÍ hay cambios de ITEMS → usar transacción (requiere replica set) ======
+    // ==== A partir de aquí: cambios de ITEMS → usar transacción (requiere replica set) ====
     const session = await mongoose.startSession();
     try {
       const order = await Order.findById(id);
@@ -415,7 +431,6 @@ exports.updateOrder = async (req, res) => {
         return res.status(404).json({ error: "Pedido no encontrado" });
 
       await session.withTransaction(async () => {
-        // Snapshot de items previos
         const prevItems = order.items.map((i) => ({
           product: String(i.product),
           size: String(i.size || ""),
@@ -435,7 +450,6 @@ exports.updateOrder = async (req, res) => {
         const normalizedNext = [];
 
         if (nextItems) {
-          // Normaliza/valida y prepara ajuste
           for (const it of nextItems) {
             const productId = it.product;
             const sizeId = it.size;
@@ -551,7 +565,7 @@ exports.updateOrder = async (req, res) => {
           order.items = rebuilt;
         }
 
-        // Campos adicionales (también soporta shippingInfo dentro de transacción)
+        // Campos adicionales
         if (typeof status !== "undefined") order.status = status;
         if (typeof trackingNumber !== "undefined")
           order.trackingNumber = String(trackingNumber || "");
@@ -605,7 +619,6 @@ exports.updateOrder = async (req, res) => {
         res.json({ message: "Pedido actualizado con control de stock", order });
       });
     } catch (txErr) {
-      // Si llegas aquí sin replica set, verás el error de transacciones
       console.error("Error actualizando pedido (transacción):", txErr);
       return res
         .status(400)
@@ -635,7 +648,6 @@ exports.cancelOrder = async (req, res) => {
     }
 
     await session.withTransaction(async () => {
-      // Restituye stock
       for (const item of order.items) {
         const product = await Product.findById(item.product).session(session);
         if (!product) continue;
@@ -655,7 +667,6 @@ exports.cancelOrder = async (req, res) => {
       order.status = "cancelado";
       await order.save({ session });
 
-      // 🔄 Invalida caché del dashboard (cancelación)
       clearDashboardCache();
 
       res.json({ message: "Pedido cancelado y stock restablecido", order });
@@ -668,7 +679,7 @@ exports.cancelOrder = async (req, res) => {
   }
 };
 
-/** ========================== UTILS ========================== */
+/** ========================== UTILS/REPORTS ========================== */
 exports.getAllOrderIds = async (req, res) => {
   try {
     const orders = await Order.find({}, "_id").sort({ createdAt: -1 });
@@ -679,13 +690,6 @@ exports.getAllOrderIds = async (req, res) => {
   }
 };
 
-/** ========================== GLOBAL SALES HISTORY ========================== */
-/**
- * GET /api/orders/sales-history
- * Filtros: from, to (YYYY-MM-DD), status, productId, userId, sizeId, colorId, limit
- * Responde items aplanados con: fecha, usuario, producto, variante, unitPrice, quantity, total,
- * stockAtPurchase, status, orderId
- */
 exports.getGlobalSalesHistory = async (req, res) => {
   try {
     const {

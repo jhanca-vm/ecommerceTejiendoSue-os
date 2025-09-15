@@ -118,8 +118,10 @@ const corsOptions = {
     "Authorization",
     "X-Requested-With",
     "X-Req-Id",
+    "Idempotency-Key",
+    "If-Match",
   ],
-  exposedHeaders: ["X-Req-Id"],
+  exposedHeaders: ["X-Req-Id", "ETag"],
   maxAge: 86400,
 };
 

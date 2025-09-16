@@ -236,6 +236,8 @@ app.use((req, _res, next) => {
 // ===================== Socket.IO (mismo origin) ================
 const io = new Server(server, {
   cors: { origin: allowlist, methods: ["GET", "POST"], credentials: true },
+  transports: ["websocket"], //ver si en el hosting no soporta websockets los proxis se lo retira
+  allowEIO3: false,         
 });
 app.set("io", io);
 

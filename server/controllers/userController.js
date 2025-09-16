@@ -32,9 +32,11 @@ function clearRefreshCookie(res) {
 
 // ====== Funciones para tokens ======
 const createAccessToken = (user) =>
-  jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: ACCESS_EXPIRES_IN,
-  });
+  jwt.sign(
+    { id: user._id, role: user.role, isVerified: !!user.isVerified },
+    process.env.JWT_SECRET,
+    { expiresIn: ACCESS_EXPIRES_IN }
+  );
 
 const createRefreshToken = (user) =>
   jwt.sign({ id: user._id, use: "refresh" }, process.env.JWT_REFRESH_SECRET, {

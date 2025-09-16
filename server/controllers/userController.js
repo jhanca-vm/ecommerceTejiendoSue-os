@@ -20,6 +20,16 @@ function refreshCookieOptions() {
   };
 }
 
+function clearRefreshCookie(res) {
+  const opts = refreshCookieOptions();
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    sameSite: opts.sameSite,
+    secure: opts.secure,
+    path: "/", // igual que setCookie
+  });
+}
+
 // ====== Funciones para tokens ======
 const createAccessToken = (user) =>
   jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
@@ -110,17 +120,26 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!validator.isEmail(email))
-      return res.status(400).json({ error: "Correo inválido" });
+    if (!validator.isEmail(email)) {
+      // respuesta neutra
+      return res.status(401).json({ error: "Credenciales inválidas" });
+    }
 
-    const user = await User.findOne({ email }).select("+password");
-    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+    // Busca usuario
+    const user = await User.findOne({ email: email.toLowerCase() }).select(
+      "+password"
+    );
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: "Contraseña incorrecta" });
+    // Defensa básica anti-enumeración/tiempo:
+    // si no hay usuario, hacemos un compare contra un hash dummy para no filtrar timing.
+    const dummyHash =
+      "$2a$10$J0uI6VVuC1mI9D0uQ5G8kO2b1wz2mLwZ2m0gQ5P1l6e8o8dFJtGKm"; // "dummyPass" hash
+    const hashToCheck = user ? user.password : dummyHash;
 
-    // 🔔 IMPORTANTE: NO bloquear el login por no verificado.
-    // Muestra limitaciones en frontend o protege rutas con requireVerified en backend.
+    const match = await bcrypt.compare(password, hashToCheck);
+    if (!user || !match) {
+      return res.status(401).json({ error: "Credenciales inválidas" });
+    }
 
     const accessToken = createAccessToken(user);
     const refreshToken = createRefreshToken(user);
@@ -244,64 +263,76 @@ exports.verifyEmail = async (req, res) => {
 // ====== Reenviar verificación ======
 exports.resendVerification = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email } = req.body || {};
+    if (!email || !validator.isEmail(email)) {
+      return res.json({
+        message: "Si tu cuenta requiere verificación, te enviaremos un correo.",
+      });
+    }
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
-    if (user.isVerified)
-      return res.status(400).json({ error: "La cuenta ya está verificada" });
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (user && !user.isVerified && process.env.JWT_EMAIL_SECRET) {
+      try {
+        const verifyToken = jwt.sign(
+          { id: user._id },
+          process.env.JWT_EMAIL_SECRET,
+          { expiresIn: "15m" }
+        );
+        await sendVerificationEmail(user.email, verifyToken);
+      } catch (e) {
+        console.error("Error reenviando verificación:", e?.message || e);
+      }
+    }
 
-    const verifyToken = jwt.sign(
-      { id: user._id },
-      process.env.JWT_EMAIL_SECRET,
-      { expiresIn: "15m" }
-    );
-    await sendVerificationEmail(user.email, verifyToken);
-
-    res.json({ message: "Correo de verificación reenviado" });
+    return res.json({
+      message: "Si tu cuenta requiere verificación, te enviaremos un correo.",
+    });
   } catch (err) {
     console.error("Error reenviando verificación:", err);
-    res.status(500).json({ error: "No se pudo reenviar el correo" });
+    // respuesta neutra
+    return res.json({
+      message: "Si tu cuenta requiere verificación, te enviaremos un correo.",
+    });
   }
 };
 
 // ====== Recuperación de contraseña ======
 exports.forgotPassword = async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) return res.status(400).json({ error: "Correo requerido" });
-
-  const user = await User.findOne({ email });
-  if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
-
-  const resetToken = jwt.sign({ id: user._id }, process.env.JWT_RESET_SECRET, {
-    expiresIn: "15m",
-  });
-
-  await sendResetEmail(user.email, resetToken);
-  res
-    .status(200)
-    .json({ message: "Correo enviado para restablecer la contraseña" });
-};
-
-exports.resetPassword = async (req, res) => {
-  const { token } = req.params;
-  const { password } = req.body;
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_RESET_SECRET);
-    const user = await User.findById(decoded.id);
-    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+    const { email } = req.body || {};
+    if (!email || !validator.isEmail(email)) {
+      // respuesta neutra
+      return res
+        .status(200)
+        .json({ message: "Si el correo es válido, enviaremos instrucciones." });
+    }
 
-    user.password = password;
-    await user.save();
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (user) {
+      try {
+        const resetToken = jwt.sign(
+          { id: user._id },
+          process.env.JWT_RESET_SECRET,
+          {
+            expiresIn: "15m",
+          }
+        );
+        await sendResetEmail(user.email, resetToken);
+      } catch (e) {
+        // No revelamos nada al cliente
+        console.error("Error enviando reset:", e?.message || e);
+      }
+    }
 
-    // 📩 Notificación (si usas transporter aquí, asegúrate de tenerlo importado)
-    // await transporter.sendMail({...});
-
-    res.status(200).json({ message: "Contraseña actualizada con éxito" });
+    // Siempre 200
+    return res
+      .status(200)
+      .json({ message: "Si el correo es válido, enviaremos instrucciones." });
   } catch (err) {
-    return res.status(400).json({ error: "Token inválido o expirado" });
+    console.error("Error en forgotPassword:", err);
+    return res
+      .status(200)
+      .json({ message: "Si el correo es válido, enviaremos instrucciones." });
   }
 };
 
@@ -309,7 +340,7 @@ exports.resetPassword = async (req, res) => {
 exports.getMe = async (req, res) => {
   const u = await User.findById(req.user.id).lean();
   if (!u) return res.status(404).json({ error: "No encontrado" });
-  res.json({
+  return res.json({
     id: u._id,
     name: u.name,
     email: u.email,
@@ -318,13 +349,8 @@ exports.getMe = async (req, res) => {
     phone: u.phone || "",
     avatar: u.avatar || { full: "", thumb: "" },
     address: u.address || {},
+    createdAt: u.createdAt,
   });
-
-  const me = await User.findById(req.user.id)
-    .select("name email role isVerified createdAt")
-    .lean();
-  if (!me) return res.status(404).json({ error: "Usuario no encontrado" });
-  res.json({ user: me });
 };
 
 // PATCH (editar nombre/telefono, etc.)
@@ -332,7 +358,8 @@ exports.updateMe = async (req, res) => {
   const { name, phone, address } = req.body || {};
   const patch = {};
 
-  if (typeof name === "string" && name.trim()) patch.name = name.trim().slice(0, 100);
+  if (typeof name === "string" && name.trim())
+    patch.name = name.trim().slice(0, 100);
   if (typeof phone === "string") patch.phone = phone.trim().slice(0, 30);
 
   if (address && typeof address === "object") {
@@ -346,7 +373,11 @@ exports.updateMe = async (req, res) => {
     };
   }
 
-  const u = await User.findByIdAndUpdate(req.user.id, { $set: patch }, { new: true }).lean();
+  const u = await User.findByIdAndUpdate(
+    req.user.id,
+    { $set: patch },
+    { new: true }
+  ).lean();
   res.json({
     id: u._id,
     name: u.name,
@@ -362,23 +393,46 @@ exports.updateMe = async (req, res) => {
 // PATCH /api/users/me/password (currentPassword, newPassword)
 exports.changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
-  if (!currentPassword || !newPassword) return res.status(400).json({ error: "Datos incompletos" });
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
 
-  const u = await User.findById(req.user.id).select("+password");
+  const u = await User.findById(req.user.id).select("+password refreshToken");
   if (!u) return res.status(404).json({ error: "No encontrado" });
 
   const ok = await bcrypt.compare(currentPassword, u.password);
-  if (!ok) return res.status(400).json({ error: "Contraseña actual incorrecta" });
+  if (!ok)
+    return res.status(400).json({ error: "Contraseña actual incorrecta" });
 
   if (
-    !validator.isStrongPassword(newPassword, { minLength: 8, minNumbers: 1, minSymbols: 1 })
+    !validator.isStrongPassword(newPassword, {
+      minLength: 8,
+      minNumbers: 1,
+      minSymbols: 1,
+    })
   ) {
-    return res.status(400).json({ error: "Contraseña débil (8+car, 1 número, 1 símbolo)" });
+    return res.status(400).json({
+      error: "Contraseña débil (mín. 8 caracteres, 1 número y 1 símbolo).",
+    });
+  }
+
+  // (Opcional) Evitar reutilizar la misma contraseña
+  const same = await bcrypt.compare(newPassword, u.password);
+  if (same) {
+    return res.status(400).json({
+      error: "La nueva contraseña no puede ser la misma que la actual",
+    });
   }
 
   u.password = newPassword;
+
+  // ▶️ Revoca refresh para forzar re-login en otros dispositivos
+  u.refreshToken = null;
   await u.save();
-  res.json({ ok: true, message: "Contraseña actualizada" });
+
+  clearRefreshCookie(res);
+
+  return res.json({ ok: true, message: "Contraseña actualizada" });
 };
 
 // PATCH /api/users/me/password
@@ -389,25 +443,90 @@ exports.changeMyPassword = async (req, res) => {
       .status(400)
       .json({ error: "Contraseña actual y nueva son requeridas" });
   }
-  const me = await User.findById(req.user.id).select("+password");
+  const me = await User.findById(req.user.id).select("+password refreshToken");
   if (!me) return res.status(404).json({ error: "Usuario no encontrado" });
 
   const ok = await bcrypt.compare(currentPassword, me.password);
   if (!ok)
     return res.status(401).json({ error: "Contraseña actual incorrecta" });
 
+  if (
+    !validator.isStrongPassword(newPassword, {
+      minLength: 8,
+      minNumbers: 1,
+      minSymbols: 1,
+    })
+  ) {
+    return res.status(400).json({
+      error: "Contraseña débil (mín. 8 caracteres, 1 número y 1 símbolo).",
+    });
+  }
+
+  const same = await bcrypt.compare(newPassword, me.password);
+  if (same) {
+    return res.status(400).json({
+      error: "La nueva contraseña no puede ser la misma que la actual",
+    });
+  }
+
   me.password = newPassword;
+  me.refreshToken = null;
   await me.save();
+
+  clearRefreshCookie(res);
+
   res.json({ message: "Contraseña actualizada" });
 };
 
 //  (multipart: avatar)
 exports.updateAvatar = async (req, res) => {
-  if (!req.avatarProcessed) return res.status(400).json({ error: "Archivo requerido" });
+  if (!req.avatarProcessed)
+    return res.status(400).json({ error: "Archivo requerido" });
   const u = await User.findByIdAndUpdate(
     req.user.id,
     { $set: { avatar: req.avatarProcessed } },
     { new: true }
   ).lean();
   res.json({ avatar: u.avatar });
+};
+
+exports.resetPassword = async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  try {
+    if (
+      !validator.isStrongPassword(password, {
+        minLength: 8,
+        minNumbers: 1,
+        minSymbols: 1,
+      })
+    ) {
+      return res.status(400).json({
+        error: "Contraseña débil (mín. 8 caracteres, 1 número y 1 símbolo).",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_RESET_SECRET);
+    const user = await User.findById(decoded.id).select(
+      "_id password refreshToken"
+    );
+    if (!user)
+      return res.status(400).json({ error: "Token inválido o expirado" });
+
+    user.password = password;
+
+    // ▶️ Revocación de refresh token (todas las sesiones deben volver a loguearse)
+    user.refreshToken = null;
+    await user.save();
+
+    // Limpiamos cookie de refresh por si existiera
+    clearRefreshCookie(res);
+
+    return res
+      .status(200)
+      .json({ message: "Contraseña actualizada con éxito" });
+  } catch (err) {
+    return res.status(400).json({ error: "Token inválido o expirado" });
+  }
 };

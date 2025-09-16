@@ -273,16 +273,27 @@ function allowed(socket, limit = 15, windowMs = 5000) {
 }
 
 io.on("connection", (socket) => {
+  try {
+    const uid = String(socket.data.user?.id || "");
+    if (uid) socket.join(`user:${uid}`);
+    if (socket.data.user?.role === "admin") socket.join("role:admin");
+  } catch {}
+
   socket.on("sendMessage", (message) => {
     if (!allowed(socket)) return;
-    const text = String(message?.text || "").slice(0, 2000);
+    const text = String(message?.text || "")
+      .trim()
+      .slice(0, 2000);
+    if (!text) return;
     const safe = {
       text,
       from: socket.data.user?.id,
       role: socket.data.user?.role,
       at: Date.now(),
     };
-    io.emit("newMessage", safe);
+    // Solo eco al remitente; los mensajes “reales” van por la API /api/messages
+    const uid = String(socket.data.user?.id || "");
+    if (uid) io.to(`user:${uid}`).emit("newMessage", safe);
   });
 });
 

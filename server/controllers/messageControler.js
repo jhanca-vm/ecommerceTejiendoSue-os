@@ -1,6 +1,9 @@
 const Message = require("../models/Message");
 const User = require("../models/User");
 
+const MAX_LEN = 5000;
+const isObjectId = (v) => typeof v === "string" && /^[0-9a-fA-F]{24}$/.test(v);
+
 // Obtener historial entre dos usuarios
 exports.getMessageHistory = async (req, res) => {
   const { withUserId } = req.params;
@@ -14,6 +17,7 @@ exports.getMessageHistory = async (req, res) => {
       ],
     })
       .sort({ createdAt: 1 })
+      .limit(1000)
       .populate("from", "name")
       .populate("to", "name");
 
@@ -26,25 +30,51 @@ exports.getMessageHistory = async (req, res) => {
 // Enviar mensaje
 exports.sendMessage = async (req, res) => {
   try {
-    const { to, content } = req.body;
-    const from = req.user.id;
+    const { to, content } = req.body || {};
+    const from = String(req.user.id);
 
-    const message = await Message.create({ from, to, content });
-    const populatedMessage = await message.populate("from to", "name email");
-
-    const io = req.app.get("io");
-
-    io.emit("newMessage", populatedMessage);
-
-    const sender = await User.findById(from);
-    if (sender.role === "user") {
-      io.emit("adminInboxUpdate");
+    // Validaciones básicas
+    if (!isObjectId(String(to))) {
+      return res.status(400).json({ error: "Destino inválido" });
+    }
+    if (String(to) === from) {
+      return res
+        .status(400)
+        .json({ error: "No puedes enviarte mensajes a ti mismo" });
+    }
+    const text = String(content || "").trim();
+    if (!text || text.length > MAX_LEN) {
+      return res.status(400).json({ error: "Contenido inválido" });
     }
 
-    res.status(201).json(populatedMessage);
+    // Verificar existencia del destinatario
+    const toUser = await User.findById(to).select("_id role").lean();
+    if (!toUser)
+      return res.status(404).json({ error: "Destinatario no encontrado" });
+
+    // Crear y poblar
+    const message = await Message.create({ from, to, content: text });
+    const populatedMessage = await message.populate(
+      "from to",
+      "name email role"
+    );
+
+    // Socket emit dirigido (rooms)
+    const io = req.app.get("io");
+    if (io) {
+      io.to(`user:${from}`).emit("newMessage", populatedMessage);
+      io.to(`user:${to}`).emit("newMessage", populatedMessage);
+
+      // Notificación solo a admins: a room de rol
+      if (toUser.role === "admin") {
+        io.to("role:admin").emit("adminInboxUpdate");
+      }
+    }
+
+    return res.status(201).json(populatedMessage);
   } catch (err) {
     console.error("Error al enviar mensaje", err);
-    res.status(500).json({ error: "Error al enviar mensaje" });
+    return res.status(500).json({ error: "Error al enviar mensaje" });
   }
 };
 

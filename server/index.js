@@ -18,6 +18,8 @@ const slowDown = require("express-slow-down");
 const { errors: celebrateErrors } = require("celebrate");
 const jwt = require("jsonwebtoken");
 
+const { issueCsrfToken, requireCsrf } = require("./middleware/csrf");
+
 // ======================= Entorno / Config =======================
 const {
   NODE_ENV = "development",
@@ -107,7 +109,12 @@ const allowlist = [
 
 const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // CLI/healthchecks
+    // Permitir herramientas locales/healthchecks sin Origin sólo en dev
+    if (!origin) {
+      return isProd
+        ? cb(new Error("Not allowed by CORS"), false)
+        : cb(null, true);
+    }
     if (allowlist.includes(origin)) return cb(null, true);
     return cb(new Error("Not allowed by CORS"), false);
   },
@@ -120,6 +127,7 @@ const corsOptions = {
     "X-Req-Id",
     "Idempotency-Key",
     "If-Match",
+    "X-CSRF-Token", 
   ],
   exposedHeaders: ["X-Req-Id", "ETag"],
   maxAge: 86400,
@@ -237,7 +245,7 @@ app.use((req, _res, next) => {
 const io = new Server(server, {
   cors: { origin: allowlist, methods: ["GET", "POST"], credentials: true },
   transports: ["websocket"], //ver si en el hosting no soporta websockets los proxis se lo retira
-  allowEIO3: false,         
+  allowEIO3: false,
 });
 app.set("io", io);
 
@@ -351,6 +359,9 @@ app.use(
 );
 
 // ===================== API cache policy (no-store) ==============
+app.get("/api/csrf", issueCsrfToken);
+app.use("/api", requireCsrf);
+
 app.use("/api", (_req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();

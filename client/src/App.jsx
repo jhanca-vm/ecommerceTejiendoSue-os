@@ -6,6 +6,9 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import GlobalHttpHandler from "./components/GlobalHttpHandler";
 
+import api, { API_BASE_URL } from "./api/apiClient";
+import { setCsrfToken } from "./api/csrfStore";
+
 /* Páginas públicas */
 import ProductListPage from "./pages/ProductListPage";
 import LoginPage from "./pages/LoginPages";
@@ -48,6 +51,16 @@ import UsersAdminPage from "./pages/admin/UsersAdminPage";
 import SupportChatPage from "./pages/SupportChatPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import SlowPage from "./routes/SlowPage";
+
+
+async function seedCsrf() {
+  try {
+    const { data } = await api.get("/csrf", { __internal: true }); // usa baseURL /api
+    if (data?.csrfToken) setCsrfToken(data.csrfToken);
+  } catch (e) {
+    console.warn("No se pudo inicializar CSRF", e?.message || e);
+  }
+}
 
 function AppShell() {
   return (
@@ -163,6 +176,8 @@ function AppShell() {
     </>
   );
 }
+
+seedCsrf();
 
 export default function App() {
   return (

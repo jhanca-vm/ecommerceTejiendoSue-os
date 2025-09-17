@@ -7,7 +7,7 @@ const verifyToken = (req, res, next) => {
   if (!token) return res.status(401).json({ error: "Token requerido" });
   try {
     const dec = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: dec.id, role: dec.role };
+    req.user = { id: dec.id, role: dec.role, isVerified: dec.isVerified };
     next();
   } catch {
     return res.status(401).json({ error: "Token inválido o expirado" });

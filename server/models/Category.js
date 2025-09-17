@@ -4,8 +4,8 @@ const mongoose = require("mongoose");
 function slugify(str = "") {
   return String(str)
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")     // quita acentos
-    .replace(/[^a-zA-Z0-9\s-]/g, "")     // quita símbolos raros
+    .replace(/[\u0300-\u036f]/g, "")     
+    .replace(/[^a-zA-Z0-9\s-]/g, "")     
     .trim()
     .replace(/\s+/g, "-")
     .toLowerCase();
@@ -31,5 +31,13 @@ categorySchema.pre("validate", async function (next) {
   next();
 });
 
+// Índice único case-insensitive (requiere Mongo que soporte collation)
+try {
+  categorySchema.index(
+    { name: 1 },
+    { unique: true, collation: { locale: "es", strength: 2 } }
+  );
+} catch (_) {}
+
 module.exports = mongoose.models.Category || mongoose.model("Category", categorySchema);
-module.exports.slugify = slugify; // exportamos util por si lo necesitas en controlador
+module.exports.slugify = slugify;

@@ -4,20 +4,52 @@ const {
   createCategory,
   getAllCategories,
   getCategoryById,
-  getCategoryBySlug,   
+  getCategoryBySlug,
   updateCategory,
   deleteCategory,
 } = require("../controllers/categoryController");
 const { verifyToken, isAdmin } = require("../middleware/auth");
-
-// Protegidas admin
-router.post("/", verifyToken, isAdmin, createCategory);
-router.put("/:id", verifyToken, isAdmin, updateCategory);
-router.delete("/:id", verifyToken, isAdmin, deleteCategory);
+const {
+  objectIdParam,
+  nameValidators,
+  handleValidationErrors,
+} = require("../middleware/validation");
 
 // Públicas
 router.get("/", getAllCategories);
-router.get("/slug/:slug", getCategoryBySlug); // <— nuevo
-router.get("/:id", getCategoryById);
+router.get("/slug/:slug", getCategoryBySlug);
+router.get(
+  "/:id",
+  objectIdParam("id"),
+  handleValidationErrors,
+  getCategoryById
+);
+
+// Admin
+router.post(
+  "/",
+  verifyToken,
+  isAdmin,
+  nameValidators("name"),
+  handleValidationErrors,
+  createCategory
+);
+router.put(
+  "/:id",
+  verifyToken,
+  isAdmin,
+  objectIdParam("id"),
+  nameValidators("name"),
+  handleValidationErrors,
+  updateCategory
+);
+router.delete(
+  "/:id",
+  verifyToken,
+  isAdmin,
+  objectIdParam("id"),
+  handleValidationErrors,
+  deleteCategory
+);
 
 module.exports = router;

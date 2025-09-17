@@ -1,5 +1,6 @@
 const express = require("express");
-const { body } = require("express-validator");
+const { body, param } = require("express-validator");
+const { handleValidationErrors } = require("../middleware/validation");
 const rateLimit = require("express-rate-limit");
 const mongoose = require("mongoose");
 
@@ -74,7 +75,42 @@ function shapePublicProduct(p) {
 }
 
 /* ====================== Validadores CRUD ====================== */
-const createUpdateValidators = [
+// Validadores estrictos para CREATE
+const createValidators = [
+  body("name")
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 200 })
+    .withMessage("Nombre requerido"),
+  body("price").isFloat({ min: 0 }).withMessage("Precio inválido"),
+  body("categories")
+    .custom((v) => isObjectId(v))
+    .withMessage("Categoría inválida"),
+  body("variants").custom((raw) => {
+    try {
+      const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (!Array.isArray(arr) || arr.length < 1) throw new Error();
+      for (const v of arr) {
+        if (!isObjectId(v.size) || !isObjectId(v.color))
+          throw new Error("Variante inválida (size/color).");
+        if (!(Number(v.stock) >= 0))
+          throw new Error("Variante inválida (stock).");
+      }
+      return true;
+    } catch {
+      throw new Error("Formato de variantes inválido (requiere al menos una).");
+    }
+  }),
+  // descuento: si llega, validarlo
+  body("discount[enabled]").optional().isIn(["true", "false"]),
+  body("discount[type]").optional().isIn(["PERCENT", "FIXED"]),
+  body("discount[value]").optional().isFloat({ min: 0 }),
+  body("discount[startAt]").optional().isISO8601(),
+  body("discount[endAt]").optional().isISO8601(),
+];
+
+// Validadores relajados para UPDATE (como ya tenías)
+const updateValidators = [
   body("name").optional().isString().trim().isLength({ min: 1, max: 200 }),
   body("description").optional().isString().trim().isLength({ max: 5000 }),
   body("price").optional().isFloat({ min: 0 }),
@@ -107,6 +143,8 @@ const createUpdateValidators = [
   body("discount[startAt]").optional().isISO8601(),
   body("discount[endAt]").optional().isISO8601(),
 ];
+
+const idParamValidator = [param("id").isMongoId().withMessage("ID inválido")];
 
 /* ================================================================
    RUTAS PÚBLICAS — ¡IMPORTANTE! Van ANTES de `/:id`
@@ -232,7 +270,7 @@ router.get("/sections", productLimiter, getProductSections);
 
 /* ===================== CRUD y endpoints existentes ===================== */
 router.get("/", getProducts);
-router.get("/:id", getProductById);
+router.get("/:id", idParamValidator, handleValidationErrors, getProductById);
 
 router.post(
   "/",
@@ -240,7 +278,8 @@ router.post(
   verifyToken,
   isAdmin,
   uploadMiddleware,
-  createUpdateValidators,
+  createValidators,
+  handleValidationErrors,
   createProduct
 );
 
@@ -249,21 +288,39 @@ router.put(
   productLimiter,
   verifyToken,
   isAdmin,
+  idParamValidator,
   uploadMiddleware,
-  createUpdateValidators,
+  updateValidators,
+  handleValidationErrors,
   updateProduct
 );
 
-router.delete("/:id", verifyToken, isAdmin, deleteProduct);
+router.delete(
+  "/:id",
+  verifyToken,
+  isAdmin,
+  idParamValidator,
+  handleValidationErrors,
+  deleteProduct
+);
 
 /* ===================== Historial / métricas ===================== */
 router.get("/history/all", verifyToken, isAdmin, getProductEntryHistory); // no confl. con :id
-router.get("/:id/history", verifyToken, isAdmin, getProductHistory);
+router.get(
+  "/:id/history",
+  verifyToken,
+  isAdmin,
+  idParamValidator,
+  handleValidationErrors,
+  getProductHistory
+);
 router.get(
   "/:id/ledger",
   productLimiter,
   verifyToken,
   isAdmin,
+  idParamValidator,
+  handleValidationErrors,
   getVariantLedgerByProduct
 );
 router.get(
@@ -271,6 +328,8 @@ router.get(
   productLimiter,
   verifyToken,
   isAdmin,
+  idParamValidator,
+  handleValidationErrors,
   getProductSalesHistory
 );
 

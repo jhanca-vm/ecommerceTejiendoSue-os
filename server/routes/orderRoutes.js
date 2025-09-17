@@ -24,7 +24,7 @@ const orderLimiter = rateLimit({
 });
 
 // Listado admin y reportes
-router.get("/", verifyToken, isAdmin, requireVerified, getAllOrders);
+router.get("/", verifyToken, isAdmin, getAllOrders);
 router.get("/sales-history", orderLimiter, verifyToken, isAdmin, getGlobalSalesHistory);
 router.get("/ids", verifyToken, isAdmin, getAllOrderIds);
 

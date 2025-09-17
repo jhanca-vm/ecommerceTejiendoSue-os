@@ -4,14 +4,45 @@ const {
   getColors,
   createColor,
   updateColor,
-  deleteColor
+  deleteColor,
 } = require("../controllers/colorController");
-
 const { verifyToken, isAdmin } = require("../middleware/auth");
+const {
+  objectIdParam,
+  nameValidators,
+  handleValidationErrors,
+} = require("../middleware/validation");
 
+// Públicas
 router.get("/", getColors);
-router.post("/", verifyToken, isAdmin, createColor);
-router.put("/:id", verifyToken, isAdmin, updateColor);
-router.delete("/:id", verifyToken, isAdmin, deleteColor);
+
+// Admin
+router.post(
+  "/",
+  verifyToken,
+  isAdmin,
+  nameValidators("name"),
+  handleValidationErrors,
+  createColor
+);
+
+router.put(
+  "/:id",
+  verifyToken,
+  isAdmin,
+  objectIdParam("id"),
+  nameValidators("name"),
+  handleValidationErrors,
+  updateColor
+);
+
+router.delete(
+  "/:id",
+  verifyToken,
+  isAdmin,
+  objectIdParam("id"),
+  handleValidationErrors,
+  deleteColor
+);
 
 module.exports = router;

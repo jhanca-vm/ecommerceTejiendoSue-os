@@ -2,6 +2,7 @@ import axios from "axios";
 import qs from "qs";
 import { getToken, setToken, logout } from "../utils/authHelpers";
 import { getAccessToken, setAccessToken, clearAccessToken } from "./tokenStore";
+import { getCsrfToken } from "./csrfStore";
 
 /* ===================== Base ===================== */
 const API_BASE_URL = (
@@ -81,8 +82,8 @@ const isPublicPath = (u = "") => {
 };
 
 /* ===================== REQUEST ===================== */
-api.interceptors.request.use((config) => {
-  const isInternal = config.__internal === true; // 🔹 NUEVO
+api.interceptors.request.use(async (config) => {
+  const isInternal = config.__internal === true;
 
   // Bearer memoria -> localStorage (compat)
   if (!isPublicPath(config.url || "")) {
@@ -92,27 +93,53 @@ api.interceptors.request.use((config) => {
     if (t) config.headers.Authorization = `Bearer ${t}`;
   }
 
-  // 🔹 si es interna, NO trackeamos ni emitimos eventos
-  if (isInternal) return config;
-
-  // AbortController por request + tracking
-  const controller = new AbortController();
-  config.signal = controller.signal;
-  const id = genId();
-  const method = (config.method || "get").toUpperCase();
-  const url = `${config.baseURL || ""}${config.url || ""}`;
-  const startedAt = Date.now();
-  const meta = { id, method, url, startedAt, controller, internal: false }; // <- solo datos simples
-  config.headers["X-Req-Id"] = id;
-  onRequestStart(meta, 15000);
-
-  // DEBUG
-  if (import.meta.env.DEV && String(config.url || "").includes("/favorites")) {
-    console.log("DBG favorites req:", {
-      url: `${config.baseURL || ""}${config.url || ""}`,
-      auth: config.headers?.Authorization ? "Bearer present" : "NO AUTH",
-    });
+  // si es interna, no trackeamos/ni overlay
+  if (!isInternal) {
+    const controller = new AbortController();
+    config.signal = controller.signal;
+    const id = genId();
+    const methodU = (config.method || "get").toUpperCase();
+    const url = `${config.baseURL || ""}${config.url || ""}`;
+    const startedAt = Date.now();
+    const meta = {
+      id,
+      method: methodU,
+      url,
+      startedAt,
+      controller,
+      internal: false,
+    };
+    config.headers["X-Req-Id"] = id;
+    onRequestStart(meta, 15000);
   }
+
+  // --- CSRF: garantizar token en mutaciones ---
+  try {
+    const methodU = (config.method || "get").toUpperCase();
+    const mutates =
+      methodU === "POST" ||
+      methodU === "PUT" ||
+      methodU === "PATCH" ||
+      methodU === "DELETE";
+    if (mutates) {
+      let csrf = getCsrfToken?.();
+      if (!csrf) {
+        // pedirlo al vuelo (llamada interna y segura)
+        try {
+          const { data } = await api.get("/csrf", { __internal: true });
+          if (data?.csrfToken) {
+            // evita import circular: hacemos require dinámico
+            const { setCsrfToken } = await import("./csrfStore");
+            setCsrfToken(data.csrfToken);
+            csrf = data.csrfToken;
+          }
+        } catch (e) {
+          // si falla, dejamos que el server responda 403
+        }
+      }
+      if (csrf) config.headers["X-CSRF-Token"] = csrf;
+    }
+  } catch {}
 
   return config;
 });

@@ -1,44 +1,47 @@
 const Color = require("../models/Color");
 
-exports.getColors = async (req, res) => {
-  const colors = await Color.find().sort("name");
-  res.json(colors);
+exports.getColors = async (_req, res) => {
+  const rows = await Color.find().sort({ name: 1 });
+  res.json(rows);
 };
 
 exports.createColor = async (req, res) => {
   try {
-    const { name } = req.body;
-    const exists = await Color.findOne({ name });
-    if (exists) return res.status(400).json({ error: "Color duplicado" });
+    const raw = (req.body?.name ?? req.body?.label ?? "").toString().trim();
+    if (!raw) return res.status(400).json({ error: "name requerido" });
 
-    const newColor = new Color({ name });
-    await newColor.save();
-    res.status(201).json(newColor);
-  } catch {
+    const c = await Color.create({ name: raw });
+    res.status(201).json(c);
+  } catch (e) {
+    if (e?.code === 11000) {
+      return res.status(400).json({ error: "El color ya existe" });
+    }
     res.status(500).json({ error: "Error al crear color" });
   }
 };
 
 exports.updateColor = async (req, res) => {
   try {
-    const updated = await Color.findByIdAndUpdate(
+    const raw = (req.body?.name ?? req.body?.label ?? "").toString().trim();
+    if (!raw) return res.status(400).json({ error: "name requerido" });
+
+    const up = await Color.findByIdAndUpdate(
       req.params.id,
-      { name: req.body.name },
-      { new: true }
+      { $set: { name: raw } },
+      { new: true, runValidators: true }
     );
-    if (!updated) return res.status(404).json({ error: "Color no encontrado" });
-    res.json(updated);
-  } catch {
+    if (!up) return res.status(404).json({ error: "No encontrado" });
+    res.json(up);
+  } catch (e) {
+    if (e?.code === 11000) {
+      return res.status(400).json({ error: "El color ya existe" });
+    }
     res.status(500).json({ error: "Error al actualizar color" });
   }
 };
 
 exports.deleteColor = async (req, res) => {
-  try {
-    const deleted = await Color.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ error: "Color no encontrado" });
-    res.json({ message: "Color eliminado" });
-  } catch {
-    res.status(500).json({ error: "Error al eliminar color" });
-  }
+  const del = await Color.findByIdAndDelete(req.params.id);
+  if (!del) return res.status(404).json({ error: "No encontrado" });
+  res.json({ ok: true });
 };

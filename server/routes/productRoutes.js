@@ -14,6 +14,7 @@ const {
   getProductEntryHistory,
   getVariantLedgerByProduct,
   getProductSalesHistory,
+  getPublicProductById,
 } = require("../controllers/productController");
 
 const {

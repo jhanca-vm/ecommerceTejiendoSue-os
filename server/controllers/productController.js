@@ -748,3 +748,36 @@ exports.getProductSalesHistory = async (req, res) => {
       .json({ error: "Error al obtener historial de ventas" });
   }
 };
+
+/* Ocultar detalle al publico si esta agotado el producto */
+exports.getPublicProductById = async (req, res) => {
+  try {
+    const p = await Product.findById(req.params.id)
+      .populate("categories", "name slug")
+      .populate("variants.size", "label")
+      .populate("variants.color", "name");
+
+    if (!p) return res.status(404).json({ error: "Producto no encontrado" });
+
+    const isAdmin = req.user?.role === "admin";
+    const totalStock = (p.variants || []).reduce(
+      (s, v) => s + (Number(v.stock) || 0),
+      0
+    );
+
+    if (!isAdmin && totalStock <= 0) {
+      // Oculto al público si está agotado
+      return res.status(404).json({ error: "Producto no disponible" });
+    }
+
+    // opcional: adjuntar effectivePrice calculado server-side
+    const eff =
+      typeof p.getEffectivePrice === "function"
+        ? p.getEffectivePrice()
+        : p.price;
+    return res.json({ ...p.toObject(), effectivePrice: eff });
+  } catch (e) {
+    console.error("getPublicProductById error", e);
+    res.status(500).json({ error: "Error al obtener producto" });
+  }
+};

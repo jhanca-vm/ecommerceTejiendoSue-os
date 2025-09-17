@@ -75,7 +75,12 @@ const ProductListBlocks = ({ product, onAddToCart }) => {
   return (
     <article className="plb" role="group" aria-label={product?.name}>
       <div className="plb__media">
+
         {off > 0 && <span className="plb__badge">-{off}%</span>}
+
+        {typeof product.totalStock === "number" && product.totalStock <= 0 && (
+          <span className="plb__badge plb__badge--soldout">Agotado</span>
+        )}
 
         {/* ❤️ Botón real conectado al contexto (guest/local + user/backend) */}
         <FavoriteButton productId={product?._id} className="plb__fav" />

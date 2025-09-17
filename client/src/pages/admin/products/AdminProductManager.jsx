@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useContext, useRef } from "react";
 
-import apiUrl from "../../../api/apiClient"
+import apiUrl from "../../../api/apiClient";
 
 import { AuthContext } from "../../../contexts/AuthContext";
 import ConfirmModal from "../../../blocks/ConfirmModalBlock";
@@ -66,7 +66,9 @@ const PromoCell = ({ discount }) => {
   const isPercent = d.type === "PERCENT";
   const valueLabel =
     typeof d.value === "number" || typeof d.value === "string"
-      ? (isPercent ? `${Number(d.value)}%` : formatCOP(d.value))
+      ? isPercent
+        ? `${Number(d.value)}%`
+        : formatCOP(d.value)
       : "—";
 
   const fmt = (iso) => {
@@ -82,10 +84,18 @@ const PromoCell = ({ discount }) => {
   return (
     <div className="promo-cell">
       <div className={`promo-badge ${status.code}`}>{status.label}</div>
-      <div className="promo-meta"><b>Tipo:</b> {d.type || "—"}</div>
-      <div className="promo-meta"><b>Valor:</b> {valueLabel}</div>
-      <div className="promo-meta"><b>Inicio:</b> {fmt(d.startAt)}</div>
-      <div className="promo-meta"><b>Fin:</b> {fmt(d.endAt)}</div>
+      <div className="promo-meta">
+        <b>Tipo:</b> {d.type || "—"}
+      </div>
+      <div className="promo-meta">
+        <b>Valor:</b> {valueLabel}
+      </div>
+      <div className="promo-meta">
+        <b>Inicio:</b> {fmt(d.startAt)}
+      </div>
+      <div className="promo-meta">
+        <b>Fin:</b> {fmt(d.endAt)}
+      </div>
     </div>
   );
 };
@@ -264,7 +274,10 @@ const AdminProductPage = () => {
 
           <label>
             Dirección:
-            <select value={sortDir} onChange={(e) => setSortDir(e.target.value)}>
+            <select
+              value={sortDir}
+              onChange={(e) => setSortDir(e.target.value)}
+            >
               <option value="asc">Asc</option>
               <option value="desc">Desc</option>
             </select>
@@ -291,29 +304,46 @@ const AdminProductPage = () => {
 
             return (
               <React.Fragment key={p._id}>
-                <tr>
+                <tr
+                  className={
+                    getTotalStock(p.variants) <= 0 ? "row-soldout" : ""
+                  }
+                >
                   <td>
                     {p.images?.[0] ? (
                       <img
                         src={safeImageUrl(SERVER_BASE, p.images[0])}
                         alt={p.name || "Producto"}
                         className="thumbnail"
-                        onError={(e) => { e.currentTarget.style.visibility = "hidden"; }}
+                        onError={(e) => {
+                          e.currentTarget.style.visibility = "hidden";
+                        }}
                       />
                     ) : (
-                      <div className="thumbnail placeholder" aria-label="Sin imagen" />
+                      <div
+                        className="thumbnail placeholder"
+                        aria-label="Sin imagen"
+                      />
                     )}
                   </td>
 
                   <td>
                     <div className="name-with-badge">
                       <span>{p.name}</span>
-                      {isActive && <span className="badge-offer">En oferta</span>}
+                      {isActive && (
+                        <span className="badge-offer">En oferta</span>
+                      )}
+                      {getTotalStock(p.variants) <= 0 && (
+                        <span className="badge-soldout">Sin stock</span>
+                      )}
                     </div>
                   </td>
 
                   <td>
-                    <PriceCell price={p.price} effectivePrice={p.effectivePrice} />
+                    <PriceCell
+                      price={p.price}
+                      effectivePrice={p.effectivePrice}
+                    />
                   </td>
 
                   <td>
@@ -325,7 +355,9 @@ const AdminProductPage = () => {
                   <td>
                     {Array.isArray(p.categories)
                       ? p.categories
-                          .map((cat) => (typeof cat === "object" ? cat?.name : cat))
+                          .map((cat) =>
+                            typeof cat === "object" ? cat?.name : cat
+                          )
                           .filter(Boolean)
                           .join(", ")
                       : typeof p.categories === "object"
@@ -350,11 +382,15 @@ const AdminProductPage = () => {
                       className="btn-variants"
                       onClick={() => toggleRow(p._id)}
                     >
-                      {expandedProductId === p._id ? "Ocultar variantes" : "Ver variantes"}
+                      {expandedProductId === p._id
+                        ? "Ocultar variantes"
+                        : "Ver variantes"}
                     </button>
                     <button
                       className="btn-history"
-                      onClick={() => navigate(`/admin/products/${p._id}/history`)}
+                      onClick={() =>
+                        navigate(`/admin/products/${p._id}/history`)
+                      }
                     >
                       Historial
                     </button>

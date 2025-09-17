@@ -215,7 +215,7 @@ const RegisterProductForm = ({ categories, onSubmit }) => {
     const formData = new FormData();
     formData.append("name", name.trim());
     formData.append("description", description);
-    formData.append("price", String(num(price))); // enviar numérico limpio
+    formData.append("price", String(num(price)));
     formData.append("categories", selectedCategory);
     formData.append("variants", JSON.stringify(variants));
 

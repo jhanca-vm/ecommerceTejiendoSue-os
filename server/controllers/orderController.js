@@ -7,6 +7,8 @@ const {
   serializeOrderForUser,
 } = require("./orderSerializers");
 
+const { emitOutOfStockAlertIfNeeded } = require("../utils/stockAlerts");
+
 // Clave lógica de ítem (para comparar por variante)
 const itemKey = (i) =>
   `${String(i.product)}::${String(i.size || "")}::${String(i.color || "")}`;
@@ -45,12 +47,10 @@ exports.createOrder = async (req, res) => {
         idempotencyKey,
       });
       if (existing) {
-        return res
-          .status(200)
-          .json({
-            orderId: existing._id,
-            order: serializeOrderForUser(existing),
-          });
+        return res.status(200).json({
+          orderId: existing._id,
+          order: serializeOrderForUser(existing),
+        });
       }
     }
 
@@ -204,6 +204,18 @@ exports.createOrder = async (req, res) => {
         notes: String(shippingInfo.notes || ""),
       },
     });
+
+    // ---------- NUEVO: Emitir alerta de stock si corresponde ----------
+    // Llamamos por cada producto procesado para crear/actualizar una alerta
+    for (const it of itemsToProcess) {
+      try {
+        await emitOutOfStockAlertIfNeeded(it.product);
+      } catch (e) {
+        // no interrumpir flujo de creación por fallos de notificación
+        console.warn("emitOutOfStockAlertIfNeeded error:", e?.message || e);
+      }
+    }
+    // -----------------------------------------------------------------
 
     clearDashboardCache();
     return res
@@ -530,6 +542,21 @@ exports.updateOrder = async (req, res) => {
             }
           }
 
+          // ---------- NUEVO: Emitir alertas de stock tras actualizar ítems ----------
+          // Emitimos por cada producto afectado para crear/actualizar alerta
+          for (const n of normalizedNext) {
+            try {
+              const pid = n.productId || (n.product && n.product._id);
+              if (pid) await emitOutOfStockAlertIfNeeded(pid);
+            } catch (e) {
+              console.warn(
+                "emitOutOfStockAlertIfNeeded (update) error:",
+                e?.message || e
+              );
+            }
+          }
+          // -----------------------------------------------------------------------
+
           // Reconstruye items preservando unitPrice/snapshots previos
           const rebuilt = [];
           for (const n of normalizedNext) {
@@ -624,7 +651,7 @@ exports.updateOrder = async (req, res) => {
         .status(400)
         .json({ error: txErr.message || "Error al actualizar pedido" });
     } finally {
-      (await mongoose.connection?.client?.startSession) ? null : null;
+      session.endSession();
     }
   } catch (error) {
     console.error("Error actualizando pedido:", error);

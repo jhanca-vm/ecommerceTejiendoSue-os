@@ -9,7 +9,7 @@ const parseIntSafe = (v, d) => {
   return Number.isFinite(n) ? n : d;
 };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-const asArray = (v) => (Array.isArray(v) ? v : (v != null ? [v] : []));
+const asArray = (v) => (Array.isArray(v) ? v : v != null ? [v] : []);
 const now = () => new Date();
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -31,8 +31,18 @@ function computeEffectiveExpr() {
           vars: {
             inWindow: {
               $and: [
-                { $or: [{ $eq: ["$$startAt", null] }, { $lte: ["$$startAt", "$$now"] }] },
-                { $or: [{ $eq: ["$$endAt", null] }, { $gte: ["$$endAt", "$$now"] }] },
+                {
+                  $or: [
+                    { $eq: ["$$startAt", null] },
+                    { $lte: ["$$startAt", "$$now"] },
+                  ],
+                },
+                {
+                  $or: [
+                    { $eq: ["$$endAt", null] },
+                    { $gte: ["$$endAt", "$$now"] },
+                  ],
+                },
               ],
             },
           },
@@ -45,7 +55,17 @@ function computeEffectiveExpr() {
                     calc: {
                       $cond: [
                         { $eq: ["$$type", "PERCENT"] },
-                        { $subtract: ["$$price", { $multiply: ["$$price", { $divide: ["$$value", 100] }] }] },
+                        {
+                          $subtract: [
+                            "$$price",
+                            {
+                              $multiply: [
+                                "$$price",
+                                { $divide: ["$$value", 100] },
+                              ],
+                            },
+                          ],
+                        },
                         { $subtract: ["$$price", "$$value"] },
                       ],
                     },
@@ -54,7 +74,7 @@ function computeEffectiveExpr() {
                     $cond: [
                       { $lt: ["$$calc", 0] },
                       0,
-                      { $round: ["$$calc", 2] }
+                      { $round: ["$$calc", 2] },
                     ],
                   },
                 },
@@ -84,7 +104,12 @@ function discountPercentExpr() {
               0,
               {
                 $round: [
-                  { $subtract: [100, { $multiply: [{ $divide: ["$$eff", "$$price"] }, 100] }] },
+                  {
+                    $subtract: [
+                      100,
+                      { $multiply: [{ $divide: ["$$eff", "$$price"] }, 100] },
+                    ],
+                  },
                   0,
                 ],
               },
@@ -98,12 +123,18 @@ function discountPercentExpr() {
 
 function sortMap(sort) {
   switch (sort) {
-    case "price_asc": return { effectivePrice: 1, _id: -1 };
-    case "price_desc": return { effectivePrice: -1, _id: -1 };
-    case "best_sellers": return { salesCount: -1, _id: -1 };
-    case "newest": return { createdAt: -1, _id: -1 };
-    case "discount_desc": return { discountPercent: -1, _id: -1 };
-    case "trending": return { trendingScore: -1, _id: -1 };
+    case "price_asc":
+      return { effectivePrice: 1, _id: -1 };
+    case "price_desc":
+      return { effectivePrice: -1, _id: -1 };
+    case "best_sellers":
+      return { salesCount: -1, _id: -1 };
+    case "newest":
+      return { createdAt: -1, _id: -1 };
+    case "discount_desc":
+      return { discountPercent: -1, _id: -1 };
+    case "trending":
+      return { trendingScore: -1, _id: -1 };
     // "relevance": si usas $text, usarías score. Aquí caemos a createdAt:
     case "relevance":
     default:
@@ -113,8 +144,12 @@ function sortMap(sort) {
 
 async function resolveCategoryId(categorySlugOrId) {
   if (!categorySlugOrId) return null;
-  if (isId(categorySlugOrId)) return new mongoose.Types.ObjectId(categorySlugOrId);
-  const cat = await Category.findOne({ slug: String(categorySlugOrId).toLowerCase(), isActive: true }).lean();
+  if (isId(categorySlugOrId))
+    return new mongoose.Types.ObjectId(categorySlugOrId);
+  const cat = await Category.findOne({
+    slug: String(categorySlugOrId).toLowerCase(),
+    isActive: true,
+  }).lean();
   return cat ? cat._id : null;
 }
 
@@ -131,13 +166,23 @@ exports.searchProducts = async (req, res) => {
 
     const onSale = String(req.query.onSale || "") === "1";
     const inStock = String(req.query.inStock || "") === "1";
-    const priceMin = Number.isFinite(Number(req.query.priceMin)) ? Number(req.query.priceMin) : null;
-    const priceMax = Number.isFinite(Number(req.query.priceMax)) ? Number(req.query.priceMax) : null;
+    const priceMin = Number.isFinite(Number(req.query.priceMin))
+      ? Number(req.query.priceMin)
+      : null;
+    const priceMax = Number.isFinite(Number(req.query.priceMax))
+      ? Number(req.query.priceMax)
+      : null;
 
-    const sizes = asArray(req.query.sizes).filter(isId).map((s) => new mongoose.Types.ObjectId(s));
-    const colors = asArray(req.query.colors).filter(isId).map((c) => new mongoose.Types.ObjectId(c));
+    const sizes = asArray(req.query.sizes)
+      .filter(isId)
+      .map((s) => new mongoose.Types.ObjectId(s));
+    const colors = asArray(req.query.colors)
+      .filter(isId)
+      .map((c) => new mongoose.Types.ObjectId(c));
 
     const categoryId = await resolveCategoryId(req.query.category);
+
+    const isAdmin = req.user?.role === "admin";
 
     // $match base
     const match = {};
@@ -148,8 +193,18 @@ exports.searchProducts = async (req, res) => {
       match["discount.enabled"] = true;
       match.$expr = {
         $and: [
-          { $or: [{ $eq: ["$discount.startAt", null] }, { $lte: ["$discount.startAt", "$$NOW"] }] },
-          { $or: [{ $eq: ["$discount.endAt", null] }, { $gte: ["$discount.endAt", "$$NOW"] }] },
+          {
+            $or: [
+              { $eq: ["$discount.startAt", null] },
+              { $lte: ["$discount.startAt", "$$NOW"] },
+            ],
+          },
+          {
+            $or: [
+              { $eq: ["$discount.endAt", null] },
+              { $gte: ["$discount.endAt", "$$NOW"] },
+            ],
+          },
         ],
       };
     }
@@ -165,11 +220,16 @@ exports.searchProducts = async (req, res) => {
       { $match: match },
 
       // Campos calculados para ordenar/proyectar
-      { $addFields: {
+      {
+        $addFields: {
           effectivePrice: computeEffectiveExpr(),
           discountPercent: discountPercentExpr(),
-        }
+          totalStock: { $sum: "$variants.stock" },
+        },
       },
+
+      // Ocultar al público cuando totalStock === 0
+      ...(!isAdmin ? [{ $match: { totalStock: { $gt: 0 } } }] : []),
 
       // Facets: data + total + facets (sizes/colors)
       {
@@ -180,16 +240,18 @@ exports.searchProducts = async (req, res) => {
             { $limit: limit },
 
             // opcional: join categoría para traer nombre/slug
-            { $lookup: {
+            {
+              $lookup: {
                 from: "categories",
                 localField: "categories",
                 foreignField: "_id",
-                as: "cat"
-              }
+                as: "cat",
+              },
             },
             { $unwind: { path: "$cat", preserveNullAndEmptyArrays: true } },
 
-            { $project: {
+            {
+              $project: {
                 _id: 1,
                 name: 1,
                 price: 1,
@@ -198,38 +260,61 @@ exports.searchProducts = async (req, res) => {
                 images: 1,
                 salesCount: 1,
                 createdAt: 1,
-                category: { _id: "$categories", name: "$cat.name", slug: "$cat.slug" },
+                totalStock: 1,
+                category: {
+                  _id: "$categories",
+                  name: "$cat.name",
+                  slug: "$cat.slug",
+                },
                 // puedes exponer flags útiles:
                 onSale: { $gt: ["$discountPercent", 0] },
-              }
-            }
+              },
+            },
           ],
-          meta: [
-            { $count: "total" }
-          ],
+          meta: [{ $count: "total" }],
           sizes: [
             { $unwind: "$variants" },
-            ...(sizes.length ? [{ $match: { "variants.size": { $in: sizes } } }] : []),
+            ...(sizes.length
+              ? [{ $match: { "variants.size": { $in: sizes } } }]
+              : []),
             { $group: { _id: "$variants.size", count: { $sum: 1 } } },
-            { $lookup: { from: "sizes", localField: "_id", foreignField: "_id", as: "s" } },
+            {
+              $lookup: {
+                from: "sizes",
+                localField: "_id",
+                foreignField: "_id",
+                as: "s",
+              },
+            },
             { $unwind: { path: "$s", preserveNullAndEmptyArrays: true } },
             { $project: { _id: 1, count: 1, label: "$s.label" } },
-            { $sort: { count: -1 } }
+            { $sort: { count: -1 } },
           ],
           colors: [
             { $unwind: "$variants" },
-            ...(colors.length ? [{ $match: { "variants.color": { $in: colors } } }] : []),
+            ...(colors.length
+              ? [{ $match: { "variants.color": { $in: colors } } }]
+              : []),
             { $group: { _id: "$variants.color", count: { $sum: 1 } } },
-            { $lookup: { from: "colors", localField: "_id", foreignField: "_id", as: "c" } },
+            {
+              $lookup: {
+                from: "colors",
+                localField: "_id",
+                foreignField: "_id",
+                as: "c",
+              },
+            },
             { $unwind: { path: "$c", preserveNullAndEmptyArrays: true } },
             { $project: { _id: 1, count: 1, name: "$c.name" } },
-            { $sort: { count: -1 } }
+            { $sort: { count: -1 } },
           ],
-        }
-      }
+        },
+      },
     ];
 
-    const agg = await Product.aggregate(pipeline).option({ allowDiskUse: true });
+    const agg = await Product.aggregate(pipeline).option({
+      allowDiskUse: true,
+    });
     const first = agg[0] || { data: [], meta: [], sizes: [], colors: [] };
     const total = first.meta[0]?.total || 0;
 
@@ -266,51 +351,128 @@ exports.getProductSections = async (req, res) => {
     const limit = clamp(parseIntSafe(req.query.limit, 12) || 12, 4, 24);
     const catId = await resolveCategoryId(req.query.category);
 
+    const isAdmin = req.user?.role === "admin";
+    const visibleMatch = !isAdmin
+      ? [{ $match: { totalStock: { $gt: 0 } } }]
+      : [];
+
     const baseMatch = {};
     if (catId) baseMatch.categories = catId;
 
     const nowDate = now();
 
     const onSalePipeline = [
-      { $match: {
+      {
+        $match: {
           ...baseMatch,
           "discount.enabled": true,
           $expr: {
             $and: [
-              { $or: [{ $eq: ["$discount.startAt", null] }, { $lte: ["$discount.startAt", nowDate] }] },
-              { $or: [{ $eq: ["$discount.endAt", null] }, { $gte: ["$discount.endAt", nowDate] }] },
+              {
+                $or: [
+                  { $eq: ["$discount.startAt", null] },
+                  { $lte: ["$discount.startAt", nowDate] },
+                ],
+              },
+              {
+                $or: [
+                  { $eq: ["$discount.endAt", null] },
+                  { $gte: ["$discount.endAt", nowDate] },
+                ],
+              },
             ],
           },
-        }
+        },
       },
-      { $addFields: { effectivePrice: computeEffectiveExpr(), discountPercent: discountPercentExpr() } },
+      {
+        $addFields: {
+          effectivePrice: computeEffectiveExpr(),
+          discountPercent: discountPercentExpr(),
+          totalStock: { $sum: "$variants.stock" },
+        },
+      },
+      ...visibleMatch,
       { $sort: { discountPercent: -1, _id: -1 } },
       { $limit: limit },
-      { $project: { _id: 1, name: 1, price: 1, effectivePrice: 1, discountPercent: 1, images: 1 } },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          price: 1,
+          effectivePrice: 1,
+          discountPercent: 1,
+          images: 1,
+        },
+      },
     ];
 
     const bestSellersPipeline = [
       { $match: baseMatch },
-      { $addFields: { effectivePrice: computeEffectiveExpr() } },
+      {
+        $addFields: {
+          effectivePrice: computeEffectiveExpr(),
+          totalStock: { $sum: "$variants.stock" },
+        },
+      },
+      ...visibleMatch,
       { $sort: { salesCount: -1, _id: -1 } },
       { $limit: limit },
-      { $project: { _id: 1, name: 1, price: 1, effectivePrice: 1, images: 1, salesCount: 1 } },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          price: 1,
+          effectivePrice: 1,
+          images: 1,
+          salesCount: 1,
+        },
+      },
     ];
 
     const newArrivalsPipeline = [
       { $match: baseMatch },
-      { $addFields: { effectivePrice: computeEffectiveExpr() } },
+      {
+        $addFields: {
+          effectivePrice: computeEffectiveExpr(),
+          totalStock: { $sum: "$variants.stock" },
+        },
+      },
+      ...visibleMatch,
       { $sort: { createdAt: -1, _id: -1 } },
       { $limit: limit },
-      { $project: { _id: 1, name: 1, price: 1, effectivePrice: 1, images: 1, createdAt: 1 } },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          price: 1,
+          effectivePrice: 1,
+          images: 1,
+          createdAt: 1,
+        },
+      },
     ];
 
     const trendingPipeline = [
       { $match: baseMatch },
-      { $addFields: { effectivePrice: computeEffectiveExpr() } },
+      {
+        $addFields: {
+          effectivePrice: computeEffectiveExpr(),
+          totalStock: { $sum: "$variants.stock" },
+        },
+      },
+      ...visibleMatch,
       { $sort: { trendingScore: -1, _id: -1 } },
       { $limit: limit },
-      { $project: { _id: 1, name: 1, price: 1, effectivePrice: 1, images: 1, trendingScore: 1 } },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          price: 1,
+          effectivePrice: 1,
+          images: 1,
+          trendingScore: 1,
+        },
+      },
     ];
 
     const [onSale, bestSellers, newArrivals, trending] = await Promise.all([

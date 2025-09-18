@@ -172,11 +172,11 @@ const CartPage = () => {
     setOpenModal(true);
   };
 
-  const buildWhatsAppText = (order, shippingInfo) => {
+  const buildWhatsAppText = (order, shippingInfo, humanCode) => {
     const lines = [];
+    const orderCode = humanCode || order._id;
     lines.push("*Nuevo pedido*");
-    lines.push(`ID: ${order._id}`);
-    lines.push(`Cliente: ${user?.name || "N/A"} (${user?.email || ""})`);
+    lines.push(`ID: ${orderCode}`);
     if (shippingInfo) {
       lines.push(
         `Envío: ${shippingInfo.fullName} | Tel: ${shippingInfo.phone}`
@@ -188,10 +188,11 @@ const CartPage = () => {
     lines.push("*Detalle:*");
     order.items.forEach((it) => {
       const name = it?.product?.name || "Producto";
+      const sku  = it?.product?.sku ? ` [${it.product.sku}]` : "";
       const size = it?.size?.label ? ` / Talla: ${it.size.label}` : "";
       const color = it?.color?.name ? ` / Color: ${it.color.name}` : "";
       lines.push(
-        `- ${name}${size}${color} x${it.quantity} = ${fmtCOP(
+        `- ${name}${sku}${size}${color} x${it.quantity} = ${fmtCOP(
           it.unitPrice * it.quantity
         )}`
       );
@@ -209,7 +210,6 @@ const CartPage = () => {
         crypto?.randomUUID?.() ||
         `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
-      // ⚠️ El backend calcula total y controla stock; aquí sólo enviamos items + shippingInfo
       const { data } = await apiUrl.post(
         `orders`,
         { items, shippingInfo, idempotencyKey: idem, source: "cart" },
@@ -222,11 +222,23 @@ const CartPage = () => {
       );
 
       const order = data.order;
-      const text = buildWhatsAppText(order, shippingInfo);
+
+      // Código legible para mostrar (no afecta backend)
+      const humanCode = `${new Date(order.createdAt || Date.now())
+        .toISOString()
+        .slice(0, 10)
+        .replace(/-/g, "")}-${String(order._id).slice(-6).toUpperCase()}`;
+
+      // Intento de copiar al portapapeles (no crítico)
+      try {
+        await navigator.clipboard?.writeText(humanCode);
+      } catch {}
+
+      const text = buildWhatsAppText(order, shippingInfo, humanCode);
       const waLink = `https://wa.me/${ADMIN_WHATSAPP}?text=${text}`;
       window.open(waLink, "_blank", "noopener,noreferrer");
 
-      showToast("Pedido realizado exitosamente", "success");
+      showToast(`Pedido creado: ${humanCode}`, "success");
       clearCart();
       navigate("/my-orders");
     } catch (err) {

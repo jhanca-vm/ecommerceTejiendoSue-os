@@ -93,7 +93,7 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
         <h4 className="oc__title">
           Pedido{" "}
           <span className="oc__id">
-            #{String(order._id).slice(-8).toUpperCase()}
+            #{String(order.items[0]?.sku).slice(-8).toUpperCase()}
           </span>
         </h4>
         <span className={badgeClass} aria-label={`Estado: ${order.status}`}>
@@ -154,6 +154,7 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
           <thead>
             <tr>
               <th>Producto</th>
+              <th>SKU</th>
               <th>Talla</th>
               <th>Color</th>
               <th>Cantidad</th>
@@ -169,6 +170,7 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
               return (
                 <tr key={item._id || i}>
                   <td>{item.product?.name || "Producto eliminado"}</td>
+                  <td>{item.product?.sku || "—"}</td>
                   <td>{item.size?.label || "-"}</td>
                   <td>{item.color?.name || "-"}</td>
                   <td>{qty}</td>

@@ -7,7 +7,7 @@ import { AuthContext } from "../../contexts/AuthContext";
 import { useToast } from "../../contexts/ToastContext";
 import ProductPriceBlock from "../ProductPrice";
 import FavoriteButton from "./FavoriteButton";
-import CheckoutModal from "../users/CheckoutModal"; 
+import CheckoutModal from "../users/CheckoutModal";
 
 /* ================= Helpers y utilidades ================= */
 const ADMIN_WHATSAPP = "573147788069";
@@ -303,8 +303,11 @@ const ProductDetailBlock = ({
       maximumFractionDigits: 0,
     });
 
-  const buildWhatsAppText = (order, shippingInfo) => {
+  const buildWhatsAppText = (order, shippingInfo, humanCode) => {
     const lines = [];
+    const orderCode = humanCode || order._id;
+    lines.push("*Nuevo pedido*");
+    lines.push(`ID: ${orderCode}`);
     lines.push("*Nuevo pedido*");
     lines.push(`ID: ${order._id}`);
     lines.push(`Cliente: ${user?.name || "N/A"} (${user?.email || ""})`);
@@ -319,10 +322,11 @@ const ProductDetailBlock = ({
     lines.push("*Detalle:*");
     (order.items || []).forEach((it) => {
       const name = it?.product?.name || "Producto";
+      const sku  = it?.product?.sku ? ` [${it.product.sku}]` : "";
       const size = it?.size?.label ? ` / Talla: ${it.size.label}` : "";
       const color = it?.color?.name ? ` / Color: ${it.color.name}` : "";
       const line = Number(it.unitPrice || 0) * Number(it.quantity || 0) || 0;
-      lines.push(`- ${name}${size}${color} x${it.quantity} = ${fmtCOP(line)}`);
+      lines.push(`- ${name}${sku}${size}${color} x${it.quantity} = ${fmtCOP(line)}`);
     });
     lines.push("");
     lines.push(`*Total:* ${fmtCOP(order.total)}`);
@@ -375,14 +379,23 @@ const ProductDetailBlock = ({
       );
 
       const order = data.order;
-      const text = buildWhatsAppText(order, shippingInfo);
+      const humanCode = `${new Date(order.createdAt || Date.now())
+        .toISOString()
+        .slice(0, 10)
+        .replace(/-/g, "")}-${String(order._id).slice(-6).toUpperCase()}`;
+
+      try {
+        await navigator.clipboard?.writeText(humanCode);
+      } catch {}
+
+      const text = buildWhatsAppText(order, shippingInfo, humanCode);
       window.open(
         `https://wa.me/${ADMIN_WHATSAPP}?text=${text}`,
         "_blank",
         "noopener,noreferrer"
       );
 
-      showToast("Pedido realizado exitosamente", "success");
+      showToast(`Pedido creado: ${humanCode}`, "success");
       navigate("/my-orders");
     } catch (err) {
       showToast(

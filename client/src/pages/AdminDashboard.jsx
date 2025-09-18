@@ -114,7 +114,12 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         !search ||
         order._id.toLowerCase().includes(search) ||
         order.user?.email?.toLowerCase().includes(search) ||
-        order.user?.name?.toLowerCase().includes(search);
+        order.user?.name?.toLowerCase().includes(search) ||
+        (order.items || []).some(
+          (it) =>
+            it?.product?.name?.toLowerCase?.().includes(search) ||
+            it?.product?.sku?.toLowerCase?.().includes(search)
+        );
 
       const matchStatus =
         statusFilter === "todos" || order.status === statusFilter;
@@ -157,6 +162,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         order.user?.email || "N/A",
         dayjs(order.createdAt).format("YYYY-MM-DD HH:mm"),
         item.product?.name || "Eliminado",
+        item.product?.sku || "—",
         item.size?.label || "-",
         item.color?.name || "-",
         item.quantity,
@@ -174,6 +180,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
           "Email",
           "Fecha",
           "Producto",
+          "SKU",
           "Talla",
           "Color",
           "Cantidad",
@@ -223,6 +230,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         Usuario: order.user?.email || "N/A",
         Fecha: dayjs(order.createdAt).format("YYYY-MM-DD HH:mm"),
         Producto: item.product?.name || "Eliminado",
+        SKU: item.product?.sku || "—",
         Talla: item.size?.label || "-",
         Color: item.color?.name || "-",
         Cantidad: item.quantity,
@@ -255,7 +263,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
   return (
     <div className="ao">
       <header className="ao__head">
-        <h1>Gestión de Pedidos</h1>
+        <h1>Gestión de Pedidos </h1>
       </header>
 
       {dateError && <div className="ao__alert">{dateError}</div>}

@@ -12,6 +12,9 @@ const {
   emitVariantLowStockAlertIfNeeded,
 } = require("../utils/stockAlerts");
 
+const Size = require("../models/Size");
+const Color = require("../models/Color");
+
 // Clave lógica de ítem (para comparar por variante)
 const itemKey = (i) =>
   `${String(i.product)}::${String(i.size || "")}::${String(i.color || "")}`;
@@ -27,6 +30,54 @@ function effectivePrice(product) {
     return Number(product.price) || 0;
   }
 }
+
+
+/* ===================== Helpers SKU por variante ===================== */
+// 3 primeras letras del nombre del producto, limpio, en MAYÚS
+const skuPrefixFromName = (name = "") => {
+  const clean = String(name)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "") 
+    .replace(/[^a-zA-Z]/g, "")       
+    .toUpperCase();
+  return clean.slice(0, 4).padEnd(4, "X"); 
+};
+
+// caches simples en memoria por request
+const _sizeCache = new Map();
+const _colorCache = new Map();
+
+const getSizeLabel = async (sizeId) => {
+  const key = String(sizeId);
+  if (_sizeCache.has(key)) return _sizeCache.get(key);
+  const doc = await Size.findById(sizeId, "label").lean();
+  const label = doc?.label ? String(doc.label) : key.slice(-3);
+  _sizeCache.set(key, label);
+  return label;
+};
+
+const getColorName = async (colorId) => {
+  const key = String(colorId);
+  if (_colorCache.has(key)) return _colorCache.get(key);
+  const doc = await Color.findById(colorId, "name").lean();
+  const name = doc?.name ? String(doc.name) : key.slice(-3);
+  _colorCache.set(key, name);
+  return name;
+};
+
+// Construye SKU repetible por variante: PPP-{TALLA}-{COL}
+const buildVariantSku = async (productName, sizeId, colorId) => {
+  const prefix = skuPrefixFromName(productName || "ITEM");
+  const sizeLabel = String(await getSizeLabel(sizeId)); // p.ej. "5" o "M"
+  const colorName = String(await getColorName(colorId)); // p.ej. "Blanco"
+  const colorCode = colorName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z]/g, "")
+    .toUpperCase()
+    .slice(0, 3) || "COL";
+  return `${prefix}-${sizeLabel}-${colorCode}`;
+};
 
 /** ========================== CREATE (sin transacciones) ==========================
  *  - Sin usar $gte en filtros de update.
@@ -116,7 +167,7 @@ exports.createOrder = async (req, res) => {
           "variants.size": it.size,
           "variants.color": it.color,
         },
-        { name: 1, price: 1, discount: 1, sku: 1, "variants.$": 1 }
+        { name: 1, price: 1, discount: 1, "variants.$": 1 } // 👈 no necesitamos product.sku aquí
       ).lean();
 
       if (!prodDoc || !prodDoc.variants || !prodDoc.variants[0]) {
@@ -181,9 +232,12 @@ exports.createOrder = async (req, res) => {
       const unitPrice = effectivePrice(prodDoc);
       total += unitPrice * it.quantity;
 
+      // 6) SKU repetible por variante (PPP-{TALLA}-{COL})
+      const lineSku = await buildVariantSku(prodDoc.name, it.size, it.color);
+
       itemsToSave.push({
         product: it.product,
-        sku: String(prodDoc.sku || ""),
+        sku: lineSku, // 👈 guardamos el SKU calculado
         size: it.size,
         color: it.color,
         quantity: it.quantity,
@@ -193,7 +247,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // 6) Crear la orden
+    // 7) Crear la orden
     const order = await Order.create({
       user: req.user.id,
       idempotencyKey: idempotencyKey || null, // <- se guarda si viene
@@ -209,11 +263,9 @@ exports.createOrder = async (req, res) => {
       },
     });
 
-    // ---------- NUEVO: Emitir alerta de stock si corresponde ----------
-    // Llamamos por cada producto procesado para crear/actualizar una alerta
+    // ---------- Emitir alerta de stock si corresponde ----------
     for (const it of itemsToProcess) {
       try {
-        // Logs opcionales para depurar
         console.log("[Alerta] Verificando variante", {
           product: String(it.product),
           size: String(it.size),
@@ -222,16 +274,11 @@ exports.createOrder = async (req, res) => {
 
         await emitVariantOutOfStockAlertIfNeeded(it.product, it.size, it.color);
         await emitVariantLowStockAlertIfNeeded(it.product, it.size, it.color);
-        console.log(
-          "[Alerta] Verificación completa mirando si van datos en ",
-          emitVariantOutOfStockAlertIfNeeded,
-          emitVariantLowStockAlertIfNeeded
-        );
       } catch (e) {
         console.warn("emitVariant... error:", e?.message || e);
       }
     }
-    // -----------------------------------------------------------------
+    // -----------------------------------------------------------
 
     clearDashboardCache();
     return res

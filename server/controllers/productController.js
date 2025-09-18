@@ -33,9 +33,33 @@ function parseVariants(raw) {
   } catch {
     arr = [];
   }
-  return (Array.isArray(arr) ? arr : []).filter(
+
+  /* Logica para sku  */
+  const list = (Array.isArray(arr) ? arr : []).filter(
     (v) => v && v.size && v.color && Number(v.stock) >= 0
   );
+  // Evitar duplicados size+color
+  const seen = new Set();
+  const out = [];
+  for (const v of list) {
+    const k = keyOf(v.size, v.color);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(v);
+    }
+  }
+  return out;
+}
+
+/* Logica para sku para manera duplicados */
+function isDuplicateVariants(raw) {
+  const seen = new Set();
+  for (const v of raw) {
+    const k = keyOf(v.size, v.color);
+    if (seen.has(k)) return true;
+    seen.add(k);
+  }
+  return false;
 }
 
 /** Clave lógica de variante */
@@ -140,7 +164,7 @@ function validateDiscountPayload(priceNumber, d) {
 /** ===================== CREATE ===================== */
 exports.createProduct = async (req, res) => {
   try {
-    const { name, description, price } = req.body;
+    const { sku, name, description, price } = req.body;
     const categoryId = normalizeCategory(req.body.categories);
     const validVariants = parseVariants(req.body.variants);
 
@@ -157,16 +181,23 @@ exports.createProduct = async (req, res) => {
         .status(400)
         .json({ error: "Debes incluir al menos una variante válida" });
     }
+    if (isDuplicateVariants(validVariants)) {
+      return res
+        .status(400)
+        .json({ error: "Variantes repetidas (talla+color)." });
+    }
 
     const imagePaths = (req.files || []).map(
       (file) => `/uploads/products/${file.filename}`
     );
 
     const newProduct = new Product({
+      // si no viene, el pre-hook genera
+      sku: typeof sku === "string" ? sku.trim() : undefined,
       name,
       description,
       price: Number(price),
-      categories: categoryId, // UNA categoría
+      categories: categoryId,
       images: imagePaths,
       variants: validVariants,
     });
@@ -185,7 +216,15 @@ exports.createProduct = async (req, res) => {
       newProduct.discount = value;
     }
 
-    await newProduct.save();
+    try {
+      await newProduct.save();
+    } catch (e) {
+      // Error de índice único (SKU duplicado)
+      if (e?.code === 11000 && e?.keyPattern?.sku) {
+        return res.status(409).json({ error: "SKU ya existe" });
+      }
+      throw e;
+    }
 
     // Ledger — creación de variantes con snapshot
     const ledgerInserts = [];
@@ -206,6 +245,7 @@ exports.createProduct = async (req, res) => {
         prevStock: null,
         newStock: Number(v.stock),
         priceSnapshot: Number(newProduct.price),
+        skuSnapshot: String(newProduct.sku || ""),
         note: "Creación con stock inicial",
         user: req.user?.id || null,
       });
@@ -276,6 +316,7 @@ exports.updateProduct = async (req, res) => {
       return res.status(404).json({ error: "Producto no encontrado" });
 
     const {
+      sku,
       name,
       description,
       price,
@@ -323,6 +364,12 @@ exports.updateProduct = async (req, res) => {
     let addedVariants = [];
     if (typeof rawVariants !== "undefined") {
       const validVariants = parseVariants(rawVariants);
+
+      if (isDuplicateVariants(validVariants)) {
+        return res
+          .status(400)
+          .json({ error: "Variantes repetidas (talla+color)." });
+      }
 
       // Añadidas y editadas
       const nowPrice =
@@ -417,6 +464,11 @@ exports.updateProduct = async (req, res) => {
       product.variants = validVariants;
     }
 
+    if (typeof sku !== "undefined" && sku.trim() !== product.sku) {
+      changes.sku = { old: product.sku, new: sku.trim() };
+      product.sku = sku.trim();
+    }
+
     // --- Cambios auditables ---
     const changes = {};
 
@@ -483,8 +535,14 @@ exports.updateProduct = async (req, res) => {
     product.images = finalImages;
 
     // --- Guardar producto ---
-    await product.save();
-
+    try {
+      await product.save();
+    } catch (e) {
+      if (e?.code === 11000 && e?.keyPattern?.sku) {
+        return res.status(409).json({ error: "SKU ya existe" });
+      }
+      throw e;
+    }
     // --- Auditoría (si hubiera cambios) ---
     if (userId && Object.keys(changes).length > 0) {
       await ProductAudit.create({
@@ -779,5 +837,67 @@ exports.getPublicProductById = async (req, res) => {
   } catch (e) {
     console.error("getPublicProductById error", e);
     res.status(500).json({ error: "Error al obtener producto" });
+  }
+};
+
+/** ===================== PATCH STOCK VARIANTE ===================== */
+exports.updateVariantStock = async (req, res) => {
+  try {
+    const { id, sizeId, colorId } = req.params;
+    const { stock } = req.body;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(id) ||
+      !mongoose.Types.ObjectId.isValid(sizeId) ||
+      !mongoose.Types.ObjectId.isValid(colorId)
+    ) {
+      return res.status(400).json({ error: "IDs inválidos" });
+    }
+    const newStock = Number(stock);
+    if (!Number.isFinite(newStock) || newStock < 0) {
+      return res.status(400).json({ error: "Stock inválido (>= 0)" });
+    }
+
+    // Traer producto + variante actual
+    const p = await Product.findOne(
+      { _id: id, "variants.size": sizeId, "variants.color": colorId },
+      { price: 1, sku: 1, "variants.$": 1 }
+    ).lean();
+    if (!p || !p.variants?.[0]) {
+      return res.status(404).json({ error: "Variante no encontrada" });
+    }
+    const prev = Number(p.variants[0].stock) || 0;
+
+    // Actualizar solo stock con operador posicional $
+    const upd = await Product.updateOne(
+      { _id: id, "variants.size": sizeId, "variants.color": colorId },
+      { $set: { "variants.$.stock": newStock } }
+    );
+    if (!upd.modifiedCount) {
+      return res.status(400).json({ error: "No se pudo actualizar stock" });
+    }
+
+    // Registrar en ledger
+    const { sizeLabel, colorName } = await getVariantSnapshots(sizeId, colorId);
+    await ProductVariantLedger.create({
+      productId: id,
+      size: sizeId,
+      color: colorId,
+      sizeLabelSnapshot: sizeLabel,
+      colorNameSnapshot: colorName,
+      variantKey: keyOf(sizeId, colorId),
+      eventType: "EDIT_STOCK",
+      status: "ACTIVE",
+      prevStock: prev,
+      newStock: newStock,
+      priceSnapshot: Number(p.price) || 0,
+      note: "Edición de stock vía endpoint dedicado",
+      user: req.user?.id || null,
+    });
+
+    return res.json({ ok: true, prevStock: prev, newStock });
+  } catch (e) {
+    console.error("updateVariantStock error:", e);
+    return res.status(500).json({ error: "Error al actualizar stock" });
   }
 };

@@ -78,6 +78,13 @@ function shapePublicProduct(p) {
 /* ====================== Validadores CRUD ====================== */
 // Validadores estrictos para CREATE
 const createValidators = [
+  body("sku")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 6, max: 64 })
+    .matches(/^[A-Z0-9][A-Z0-9-_]{5,63}$/i)
+    .withMessage("SKU inválido"),
   body("name")
     .isString()
     .trim()
@@ -112,6 +119,13 @@ const createValidators = [
 
 // Validadores relajados para UPDATE (como ya tenías)
 const updateValidators = [
+  body("sku")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 6, max: 64 })
+    .matches(/^[A-Z0-9][A-Z0-9-_]{5,63}$/i)
+    .withMessage("SKU inválido"),
   body("name").optional().isString().trim().isLength({ min: 1, max: 200 }),
   body("description").optional().isString().trim().isLength({ max: 5000 }),
   body("price").optional().isFloat({ min: 0 }),
@@ -303,6 +317,22 @@ router.delete(
   idParamValidator,
   handleValidationErrors,
   deleteProduct
+);
+
+// PATCH stock de variante (solo stock)
+router.patch(
+  "/:id/variant/:sizeId/:colorId/stock",
+  productLimiter,
+  verifyToken,
+  isAdmin,
+  [
+    param("id").isMongoId(),
+    param("sizeId").isMongoId(),
+    param("colorId").isMongoId(),
+    body("stock").isInt({ min: 0 }).withMessage("Stock inválido"),
+  ],
+  handleValidationErrors,
+  require("../controllers/productController").updateVariantStock
 );
 
 /* ===================== Historial / métricas ===================== */

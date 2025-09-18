@@ -1,21 +1,24 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { FaTimesCircle, FaPlusCircle } from "react-icons/fa";
-
-import { useToast } from "../../contexts/ToastContext"; 
+import { useToast } from "../../contexts/ToastContext";
 import apiUrl from "../../api/apiClient";
 
 const MAX_IMAGE_MB = 10;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
+// Debe coincidir con la validación backend (6–64, alfanumérico, guion o guion_bajo, sin espacios)
+const SKU_REGEX = /^[A-Z0-9][A-Z0-9-_]{5,63}$/i;
+
 const RegisterProductForm = ({ categories, onSubmit }) => {
   const navigate = useNavigate();
-  const { showToast } = useToast(); // ⬅️ toasts
+  const { showToast } = useToast();
 
   // Campos base
+  const [sku, setSku] = useState(""); // opcional: si se deja vacío, el backend lo autogenera
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState(""); // guardamos string, limpiamos al enviar
+  const [price, setPrice] = useState(""); // string en UI; se limpia al enviar
   const [selectedCategory, setSelectedCategory] = useState("");
 
   // Imágenes (File[]) + previews (blob URLs)
@@ -36,6 +39,7 @@ const RegisterProductForm = ({ categories, onSubmit }) => {
 
   // Errores UI
   const [errors, setErrors] = useState({
+    sku: "",
     name: "",
     price: "",
     category: "",
@@ -71,6 +75,7 @@ const RegisterProductForm = ({ categories, onSubmit }) => {
 
   const clearAllErrors = () =>
     setErrors({
+      sku: "",
       name: "",
       price: "",
       category: "",
@@ -81,7 +86,6 @@ const RegisterProductForm = ({ categories, onSubmit }) => {
 
   const toastInfo = (msg) => showToast(msg, "info");
   const toastWarn = (msg) => showToast(msg, "warning");
-  //const toastError = (msg) => showToast(msg, "error");
   const toastOk = (msg) => showToast(msg, "success");
 
   /* ============ Imágenes: validación tipo/tamaño y previews ============ */
@@ -124,7 +128,7 @@ const RegisterProductForm = ({ categories, onSubmit }) => {
     setPreviews((prev) => [...prev, ...urls]);
 
     // permitir volver a elegir mismos archivos
-    e.target.value = ""; 
+    e.target.value = "";
   };
 
   const handleRemoveNewImage = (index) => {
@@ -178,6 +182,17 @@ const RegisterProductForm = ({ categories, onSubmit }) => {
     clearAllErrors();
     let ok = true;
 
+    // SKU opcional pero, si se ingresa, debe cumplir el patrón
+    if (sku.trim()) {
+      if (!SKU_REGEX.test(sku.trim())) {
+        setFieldError(
+          "sku",
+          "SKU inválido (6–64 caracteres, alfanumérico/ - / _ , sin espacios)."
+        );
+        ok = false;
+      }
+    }
+
     if (!name.trim()) {
       setFieldError("name", "El nombre es obligatorio.");
       ok = false;
@@ -213,6 +228,7 @@ const RegisterProductForm = ({ categories, onSubmit }) => {
     }
 
     const formData = new FormData();
+    if (sku.trim()) formData.append("sku", sku.trim()); // opcional; si no va, el backend lo crea
     formData.append("name", name.trim());
     formData.append("description", description);
     formData.append("price", String(num(price)));
@@ -232,6 +248,8 @@ const RegisterProductForm = ({ categories, onSubmit }) => {
   /* ===================== UI ===================== */
   const priceHelp =
     "Ingresa el precio en COP sin separadores de miles (p. ej. 259900).";
+  const skuHelp =
+    "Opcional. Déjalo vacío para autogenerar. Formato sugerido: simple, corto y único (p. ej. CAM-NEG-L).";
 
   return (
     <form
@@ -239,6 +257,31 @@ const RegisterProductForm = ({ categories, onSubmit }) => {
       className="product-form"
       encType="multipart/form-data"
     >
+      {/* SKU */}
+      <div>
+        <label htmlFor="prod-sku">SKU (opcional)</label>
+        <input
+          id="prod-sku"
+          type="text"
+          placeholder="SKU del producto (p. ej. CAM-NEG-01)"
+          value={sku}
+          onChange={(e) => {
+            setSku(e.target.value.toUpperCase());
+            if (!e.target.value || SKU_REGEX.test(e.target.value))
+              setFieldError("sku", "");
+          }}
+          className={errors.sku ? "is-invalid" : ""}
+          inputMode="latin-prose"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+        />
+        <p className="muted" style={{ marginTop: 4 }}>
+          {skuHelp}
+        </p>
+        {errors.sku && <p className="error-text">{errors.sku}</p>}
+      </div>
+
       {/* Nombre */}
       <div>
         <label htmlFor="prod-name">Nombre de producto</label>

@@ -10,6 +10,7 @@ const entrySchema = new mongoose.Schema({
   // Copia inmutable para mostrar aunque se eliminen catálogos
   sizeLabelSnapshot:  { type: String, required: true },
   colorNameSnapshot:  { type: String, required: true },
+  skuSnapshot:        { type: String, default: "" },
 
   // Identificador lógico de la variante (size+color)
   variantKey: { type: String, required: true, index: true }, // `${sizeId}::${colorId}` o `${sizeLabel}::${colorName}` si no hay refs

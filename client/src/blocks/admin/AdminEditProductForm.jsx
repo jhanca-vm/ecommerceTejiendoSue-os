@@ -2,21 +2,18 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { FaTimesCircle, FaPlusCircle } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
-import { formatCOP } from "../../utils/currency"; 
+import { formatCOP } from "../../utils/currency";
 import apiURL from "../../api/apiClient";
 
-/** Util: convierte fecha ISO a valor compatible con <input type="datetime-local"> */
+/** Convierte ISO a valor de <input type="datetime-local"> */
 const toDatetimeLocal = (iso) => {
   if (!iso) return "";
   try {
     const d = new Date(iso);
     const pad = (n) => String(n).padStart(2, "0");
-    const yyyy = d.getFullYear();
-    const mm = pad(d.getMonth() + 1);
-    const dd = pad(d.getDate());
-    const hh = pad(d.getHours());
-    const mi = pad(d.getMinutes());
-    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+      d.getDate()
+    )}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   } catch {
     return "";
   }
@@ -32,7 +29,7 @@ const normalizeVariantsForSubmit = (vars) =>
     stock: Number(v.stock) || 0,
   }));
 
-/** Componente de preview del precio con descuento */
+/** Preview del precio con descuento */
 const DiscountPreview = ({ price, discount }) => {
   const { enabled, type, value } = discount || {};
   const has = enabled && price > 0 && Number(value) > 0;
@@ -63,6 +60,8 @@ const DiscountPreview = ({ price, discount }) => {
   );
 };
 
+const SKU_REGEX = /^[A-Za-z0-9\-_.]{3,32}$/; // corto, legible y único
+
 const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
   const [categories, setCategories] = useState([]);
   const [sizes, setSizes] = useState([]);
@@ -71,35 +70,36 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
+    sku: "", // ⬅️ NUEVO
     name: "",
     description: "",
     price: "",
-    // Campos de descuento
     discountEnabled: false,
-    discountType: "PERCENT", 
+    discountType: "PERCENT",
     discountValue: "",
     discountStartAt: "",
     discountEndAt: "",
   });
   const [selectedCategory, setSelectedCategory] = useState("");
 
-  // Nuevas imágenes seleccionadas (File[]) y sus previews (blob URLs)
+  // nuevas imágenes (File[]) + previews
   const [images, setImages] = useState([]);
   const [preview, setPreview] = useState([]);
 
-  // Imágenes existentes (paths del server)
+  // imágenes existentes (paths)
   const [existingImages, setExistingImages] = useState([]);
 
+  // variantes
   const [variants, setVariants] = useState([]);
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [variantStock, setVariantStock] = useState("");
 
-  // Para detectar cambios reales
+  // para detectar cambios reales
   const originalVariantsRef = useRef("[]");
   const originalDiscountRef = useRef("{}");
+  const originalSkuRef = useRef(""); // ⬅️ NUEVO
 
-  // Evita doble submit
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -122,6 +122,7 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
 
       const p = productRes.data;
       const {
+        sku, // ⬅️ NUEVO (del backend)
         name,
         description,
         price,
@@ -131,11 +132,11 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
         discount,
       } = p;
 
-      // catField puede venir como objeto populado o como id
       const catId =
         typeof catField === "string" ? catField : catField?._id || "";
 
       setForm({
+        sku: sku || "", // ⬅️ NUEVO
         name: name || "",
         description: description || "",
         price: price || "",
@@ -147,11 +148,13 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
           : "",
         discountEndAt: discount?.endAt ? toDatetimeLocal(discount.endAt) : "",
       });
+      originalSkuRef.current = sku || ""; // ⬅️ NUEVO
+
       setSelectedCategory(catId);
       setExistingImages(images || []);
       setVariants(variants || []);
 
-      // Guardamos versiones originales normalizadas para comparar
+      // originales para comparar
       originalVariantsRef.current = JSON.stringify(
         normalizeVariantsForSubmit(variants || [])
       );
@@ -174,28 +177,20 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setForm((f) => ({
-      ...f,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    setForm((f) => ({ ...f, [name]: type === "checkbox" ? checked : value }));
   };
 
-  // Añadir nuevas imágenes
+  // nuevas imágenes
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    // Seguridad básica: limitar tipos mime comunes de imagen
-    const safeFiles = files.filter((f) => /^image\//.test(f.type));
-    if (safeFiles.length !== files.length) {
-      showToast(
-        "Algunas imágenes fueron rechazadas por tipo no permitido",
-        "warning"
-      );
+    const safe = files.filter((f) => /^image\//.test(f.type));
+    if (safe.length !== files.length) {
+      showToast("Se rechazaron archivos por tipo no permitido", "warning");
     }
-
-    const urls = safeFiles.map((file) => URL.createObjectURL(file));
-    setImages((prev) => [...prev, ...safeFiles]);
+    const urls = safe.map((file) => URL.createObjectURL(file));
+    setImages((prev) => [...prev, ...safe]);
     setPreview((prev) => [...prev, ...urls]);
     e.target.value = "";
   };
@@ -212,10 +207,10 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
     });
   };
 
+  // Añadir variante NUEVA (size+color) con stock inicial
   const handleAddVariant = () => {
     if (!selectedSize || !selectedColor || Number(variantStock) <= 0) return;
 
-    // Evita duplicados comparando por IDs aunque el estado tenga objetos
     const exists = (variants || []).some(
       (v) =>
         getIdVal(v.size) === selectedSize && getIdVal(v.color) === selectedColor
@@ -231,8 +226,17 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
     setVariantStock("");
   };
 
+  // Eliminar variante completa
   const handleRemoveVariant = (index) => {
     setVariants((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // ⬇️ NUEVO: editar stock inline sin tocar talla/color
+  const handleVariantStockEdit = (index, value) => {
+    const v = Math.max(0, Number(value) || 0);
+    setVariants((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, stock: v } : item))
+    );
   };
 
   // Validación de descuento (cliente)
@@ -248,10 +252,7 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
       }
     } else {
       if (!(v > 0 && v < priceNum)) {
-        showToast(
-          "Descuento fijo debe ser mayor a 0 y menor al precio",
-          "error"
-        );
+        showToast("Descuento fijo debe ser > 0 y < precio", "error");
         return false;
       }
     }
@@ -270,10 +271,15 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
     e.preventDefault();
 
     if (!selectedCategory || Number(form.price) <= 0) {
-      return showToast("Completa todos los campos requeridos", "error");
+      return showToast("Completa los campos requeridos", "error");
+    }
+    if (form.sku && !SKU_REGEX.test(form.sku)) {
+      return showToast(
+        "SKU inválido. Usa 3–32 caracteres A-Z, 0-9, - _ .",
+        "error"
+      );
     }
     if (!validateDiscount()) return;
-
     if (!token) {
       showToast("Sesión inválida. Vuelve a iniciar sesión.", "error");
       return;
@@ -288,7 +294,12 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
       formData.append("price", String(form.price));
       formData.append("categories", String(selectedCategory));
 
-      // Variantes: solo enviamos si CAMBIARON respecto al original
+      // ⬇️ SKU solo si cambió (evita sobre-escribir innecesario)
+      if ((form.sku || "") !== (originalSkuRef.current || "")) {
+        formData.append("sku", String(form.sku || "").trim());
+      }
+
+      // Variantes: enviamos solo si cambió cualquiera (incluye cambios de stock)
       const normalized = normalizeVariantsForSubmit(variants);
       const nowStr = JSON.stringify(normalized);
       const originalStr = originalVariantsRef.current;
@@ -296,15 +307,14 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
         formData.append("variants", nowStr);
       }
 
-      // Mantener imágenes existentes (las no eliminadas)
+      // Mantener imágenes existentes
       (existingImages || []).forEach((img) =>
         formData.append("existingImages", img)
       );
-
-      // Adjuntar nuevas
+      // Nuevas
       (images || []).forEach((file) => formData.append("images", file));
 
-      // Adjuntar descuento solo si cambió
+      // Descuento: solo si cambió
       const discountPayload = {
         enabled: !!form.discountEnabled,
         type: form.discountType === "FIXED" ? "FIXED" : "PERCENT",
@@ -320,23 +330,17 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
           Number(discountPayload.value || 0) ||
         (originalDiscount.startAt || "") !== (form.discountStartAt || "") ||
         (originalDiscount.endAt || "") !== (form.discountEndAt || "");
-
       if (changedDiscount) {
         formData.append("discount", JSON.stringify(discountPayload));
       }
 
-      const { data } = await apiURL.put(
-        `products/${productId}`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      const { data } = await apiURL.put(`products/${productId}`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
-      // ⬇️ usar el id de historial para abrir modal en la lista
       const openId =
         data?.historyEvents?.variants || data?.historyEvents?.price || null;
 
@@ -344,14 +348,18 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
       if (typeof onSuccess === "function") onSuccess(openId);
     } catch (err) {
       console.error("API error:", err?.response?.data || err);
-      const msg = err?.response?.data?.error || "Error al actualizar producto";
-      showToast(msg, "error");
+      const status = err?.response?.status;
+      const msg =
+        err?.response?.data?.error ||
+        (status === 409
+          ? "Conflicto con el SKU (ya existe). Cambia el SKU e intenta de nuevo."
+          : "Error al actualizar producto");
+      showToast(msg, status === 409 ? "warning" : "error");
     } finally {
       setSaving(false);
     }
   };
 
-  // Helpers de visualización para variantes (funcionan con id u objeto)
   const getSizeLabel = (v) => {
     if (!v) return "—";
     if (typeof v.size === "object" && v.size?.label) return v.size.label;
@@ -373,6 +381,16 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
         className="product-form"
         encType="multipart/form-data"
       >
+        {/* SKU (producto) */}
+        <input
+          type="text"
+          name="sku"
+          placeholder="SKU (único, p. ej. TS-PLN-001)"
+          value={form.sku}
+          onChange={handleInputChange}
+          maxLength={32}
+        />
+
         <input
           type="text"
           name="name"
@@ -528,13 +546,25 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
           </button>
         </div>
 
+        {/* Lista de variantes con edición de stock inline */}
         {Array.isArray(variants) && variants.length > 0 && (
           <ul className="variant-list">
             {variants.map((v, i) => (
-              <li key={i}>
-                Talla: {getSizeLabel(v)} | Color: {getColorName(v)} | Stock:{" "}
-                {v.stock}
-                <button type="button" onClick={() => handleRemoveVariant(i)}>
+              <li key={`${getIdVal(v.size)}-${getIdVal(v.color)}`}>
+                Talla: <b>{getSizeLabel(v)}</b> | Color:{" "}
+                <b>{getColorName(v)}</b> | Stock:{" "}
+                <input
+                  type="number"
+                  value={v.stock}
+                  min="0"
+                  onChange={(e) => handleVariantStockEdit(i, e.target.value)}
+                  style={{ width: 100 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRemoveVariant(i)}
+                  title="Eliminar variante"
+                >
                   ✖
                 </button>
               </li>
@@ -547,6 +577,7 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
         <div className="image-preview">
           {existingImages.map((img, index) => (
             <div key={`ex-${index}`} className="preview-box">
+              {/* usa tu base URL de backend en prod */}
               <img src={`http://localhost:5000${img}`} alt="" />
               <button
                 type="button"
@@ -566,7 +597,6 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
           multiple
           onChange={handleFileChange}
         />
-
         <div className="image-preview">
           {preview.map((src, i) => (
             <div key={`new-${i}`} className="preview-box">
@@ -600,4 +630,3 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
 };
 
 export default AdminEditProductForm;
-

@@ -116,7 +116,7 @@ exports.createOrder = async (req, res) => {
           "variants.size": it.size,
           "variants.color": it.color,
         },
-        { name: 1, price: 1, discount: 1, "variants.$": 1 }
+        { name: 1, price: 1, discount: 1, sku: 1, "variants.$": 1 }
       ).lean();
 
       if (!prodDoc || !prodDoc.variants || !prodDoc.variants[0]) {
@@ -183,6 +183,7 @@ exports.createOrder = async (req, res) => {
 
       itemsToSave.push({
         product: it.product,
+        sku: String(prodDoc.sku || ""),
         size: it.size,
         color: it.color,
         quantity: it.quantity,
@@ -221,7 +222,11 @@ exports.createOrder = async (req, res) => {
 
         await emitVariantOutOfStockAlertIfNeeded(it.product, it.size, it.color);
         await emitVariantLowStockAlertIfNeeded(it.product, it.size, it.color);
-        console.log("[Alerta] Verificación completa mirando si van datos en ", emitVariantOutOfStockAlertIfNeeded, emitVariantLowStockAlertIfNeeded);
+        console.log(
+          "[Alerta] Verificación completa mirando si van datos en ",
+          emitVariantOutOfStockAlertIfNeeded,
+          emitVariantLowStockAlertIfNeeded
+        );
       } catch (e) {
         console.warn("emitVariant... error:", e?.message || e);
       }
@@ -593,6 +598,8 @@ exports.updateOrder = async (req, res) => {
             const unitPrice = prev
               ? Number(prev.unitPrice)
               : effectivePrice(n.product);
+            const sku =
+              prev && prev.sku ? prev.sku : String(n.product.sku || "");
             const stockBeforePurchase =
               prev && typeof prev.stockBeforePurchase === "number"
                 ? prev.stockBeforePurchase
@@ -605,6 +612,7 @@ exports.updateOrder = async (req, res) => {
 
             rebuilt.push({
               product: n.productId,
+              sku,
               size: n.sizeId,
               color: n.colorId,
               quantity: n.qty,

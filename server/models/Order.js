@@ -18,6 +18,7 @@ const orderItemSchema = new mongoose.Schema(
       ref: "Product",
       required: true,
     },
+    sku: { type: String, required: true, trim: true },
     quantity: { type: Number, required: true, min: 1 },
     size: { type: mongoose.Schema.Types.ObjectId, ref: "Size" },
     color: { type: mongoose.Schema.Types.ObjectId, ref: "Color" },

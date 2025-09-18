@@ -19,7 +19,7 @@
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
 }
 .navbar-wrapper {
- /* max-width: var(--maxw);*/
+  /* max-width: var(--maxw);*/
   margin: 0 auto;
   padding: 0.6rem 1rem;
   display: grid;
@@ -243,7 +243,7 @@
 }
 .icon-btn svg path,
 .account-btn svg path {
-  fill: currentColor; 
+  fill: currentColor;
 }
 .cart-btn {
   text-decoration: none;
@@ -266,7 +266,7 @@
 }
 .icon-btn svg {
   stroke: currentColor;
-  fill: none; 
+  fill: none;
 }
 
 /* ====== SEARCH BAR (desktop/tablet) ====== */
@@ -486,7 +486,84 @@
   z-index: 55;
 }
 
-
+/* ====== Estilos de la campana de alerta ====== */
+.dropdown.alerts {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: 360px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  padding: 8px;
+  display: none;
+  z-index: 20;
+}
+.dropdown.alerts.open {
+  display: block;
+}
+.alerts-head,
+.alerts-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+}
+.alerts-head .spacer {
+  flex: 1;
+}
+.alerts-empty {
+  padding: 12px;
+  color: #6b7280;
+}
+.alerts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow: auto;
+}
+.al {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 8px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #f3f4f6;
+}
+.al + .al {
+  margin-top: 6px;
+}
+.al-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.al-body {
+  grid-column: 1 / span 2;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+.al-msg {
+  color: #374151;
+  font-size: 13px;
+}
+.al-close {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 14px;
+}
+.al--OUT_OF_STOCK {
+  background: #fff1f2;
+  border-color: #ffe4e6;
+}
+.al--LOW_STOCK {
+  background: #fffbeb;
+  border-color: #fef3c7;
+}
 
 /* ====== RESPONSIVE ====== */
 @media (max-width: 1024px) {

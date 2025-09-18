@@ -423,6 +423,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const favoriteRoutes = require("./routes/favoriteRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
+const adminAlertsRoutes = require("./routes/adminAlerts");
 
 // Healthcheck
 app.get("/health", (_req, res) =>
@@ -445,6 +446,7 @@ app.use("/api/visits", visitRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/admin/alerts", adminAlertsRoutes);
 
 // ========== Errores de celebrate (si usas celebrate en rutas) ====
 app.use(celebrateErrors());

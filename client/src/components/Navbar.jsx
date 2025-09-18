@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useState, useRef, useContext } from "react";
 
 import { AuthContext } from "../contexts/AuthContext";
 import { CartContext } from "../contexts/CartContext";
@@ -254,7 +254,7 @@ const menuConfig = ({ role, hidePublic }) => {
               },
             ],
           },
-                    {
+          {
             label: "Usuarios",
             to: "/admin/users",
             activeMatch: /^\/admin\/users(\/|$)/,
@@ -283,6 +283,8 @@ const Navbar = () => {
   const [showSearch, setShowSearch] = useState(false);
   const navRef = useRef(null);
 
+  const isAdmin = user?.role === "admin";
+
   const isAdminRoute = location.pathname.startsWith("/admin");
   const hidePublic = isAdminRoute || user?.role === "user";
   const isCustomer = user?.role === "user";
@@ -294,28 +296,6 @@ const Navbar = () => {
       .split(" ")
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
       .join(" ");
-
-  useEffect(() => {
-    const onClickOutside = (e) => {
-      if (navRef.current && !navRef.current.contains(e.target)) {
-        setOpenDropdown(null);
-      }
-    };
-    const onEsc = (e) => {
-      if (e.key === "Escape") {
-        setOpenDropdown(null);
-        setDrawerOpen(false);
-        setMobileOpenIndex(null);
-        setShowSearch(false);
-      }
-    };
-    document.addEventListener("mousedown", onClickOutside);
-    document.addEventListener("keydown", onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onClickOutside);
-      document.removeEventListener("keydown", onEsc);
-    };
-  }, []);
 
   const items = menuConfig({ role: user?.role, hidePublic });
 
@@ -337,12 +317,7 @@ const Navbar = () => {
 
   const handleSearchToggle = () => setShowSearch((s) => !s);
   const handleWishlist = () => navigate("/favorites");
-  const accountPath = !user
-    ? "/profile"
-    : user.role === "admin"
-    ? "/profile"
-    : "/";
-
+  
   return (
     <>
       <nav className="navbar-container" ref={navRef}>
@@ -446,6 +421,97 @@ const Navbar = () => {
 
           {/* DERECHA */}
           <div className="nav-right">
+            {isAdmin && (
+              <div className="icon-bar">
+                <Link
+                  to="/admin/alerts"
+                  className={`icon-btn support-link ${
+                    isSupportActive ? "active" : ""
+                  }`}
+                  aria-label="Perfil"
+                  title="Perfil"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z" />
+                  </svg>
+                </Link>
+
+                {/* Dropdown simple se muestra aun lado como para mostrar mensajes rapidos */}
+                {/* <div
+                  className={`dropdown alerts ${alertsOpen ? "open" : ""}`}
+                  role="menu"
+                  aria-hidden={!alertsOpen}
+                >
+                  <div className="alerts-head">
+                    <strong>Alertas</strong>
+                    <div className="spacer" />
+                    {unreadAlerts > 0 && (
+                      <button
+                        className="link"
+                        onClick={markAllSeen}
+                        type="button"
+                      >
+                        Marcar todas como vistas
+                      </button>
+                    )}
+                  </div>
+
+                  {alerts.length === 0 ? (
+                    <div className="alerts-empty">Sin alertas nuevas</div>
+                  ) : (
+                    <ul className="alerts-list">
+                      {alerts.map((al) => (
+                        <li key={al._id} className={`al al--${al.type}`}>
+                          <div className="al-title">
+                            {al.type === "OUT_OF_STOCK"
+                              ? "Sin stock"
+                              : "Stock bajo"}
+                          </div>
+                          <div className="al-body">
+                            <div className="al-msg">{al.message}</div>
+                            {al.product?._id && (
+                              <button
+                                className="link"
+                                onClick={() => {
+                                  markOneSeen(al._id);
+                                  navigate(
+                                    `/admin/products/edit/${al.product._id}`
+                                  );
+                                  setAlertsOpen(false);
+                                }}
+                                type="button"
+                              >
+                                Ir al producto
+                              </button>
+                            )}
+                          </div>
+                          <button
+                            className="al-close"
+                            onClick={() => markOneSeen(al._id)}
+                            type="button"
+                          >
+                            ✕
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <div className="alerts-foot">
+                    <button
+                      className="link"
+                      onClick={() => {
+                        setAlertsOpen(false);
+                        navigate("/admin/alerts");
+                      }}
+                      type="button"
+                    >
+                      Ver todas
+                    </button>
+                  </div>
+                </div>*/}
+              </div>
+            )}
             {/* Iconos (solo desktop) — SOLO para clientes */}
             {isCustomer && (
               <div className="icon-bar">

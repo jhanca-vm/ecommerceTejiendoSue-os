@@ -46,12 +46,12 @@ import AdminProductEntryHistoryPage from "./pages/admin/products/AdminProductEnt
 import AdminInboxPage from "./pages/AdminInboxPage";
 import RequireAdmin from "./components/RequireAdmin";
 import UsersAdminPage from "./pages/admin/UsersAdminPage";
+import AdminAlertsPage from "./pages/admin/products/AdminAlertsPage";
 
 /* Soporte y varias */
 import SupportChatPage from "./pages/SupportChatPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import SlowPage from "./routes/SlowPage";
-
 
 async function seedCsrf() {
   try {
@@ -156,6 +156,7 @@ function AppShell() {
                 </RequireAdmin>
               }
             />
+            <Route path="/admin/alerts" element={<AdminAlertsPage />} />
           </Route>
 
           {/* Soporte compartido */}

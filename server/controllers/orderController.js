@@ -7,7 +7,10 @@ const {
   serializeOrderForUser,
 } = require("./orderSerializers");
 
-const { emitOutOfStockAlertIfNeeded } = require("../utils/stockAlerts");
+const {
+  emitVariantOutOfStockAlertIfNeeded,
+  emitVariantLowStockAlertIfNeeded,
+} = require("../utils/stockAlerts");
 
 // Clave lógica de ítem (para comparar por variante)
 const itemKey = (i) =>
@@ -209,10 +212,18 @@ exports.createOrder = async (req, res) => {
     // Llamamos por cada producto procesado para crear/actualizar una alerta
     for (const it of itemsToProcess) {
       try {
-        await emitOutOfStockAlertIfNeeded(it.product);
+        // Logs opcionales para depurar
+        console.log("[Alerta] Verificando variante", {
+          product: String(it.product),
+          size: String(it.size),
+          color: String(it.color),
+        });
+
+        await emitVariantOutOfStockAlertIfNeeded(it.product, it.size, it.color);
+        await emitVariantLowStockAlertIfNeeded(it.product, it.size, it.color);
+        console.log("[Alerta] Verificación completa mirando si van datos en ", emitVariantOutOfStockAlertIfNeeded, emitVariantLowStockAlertIfNeeded);
       } catch (e) {
-        // no interrumpir flujo de creación por fallos de notificación
-        console.warn("emitOutOfStockAlertIfNeeded error:", e?.message || e);
+        console.warn("emitVariant... error:", e?.message || e);
       }
     }
     // -----------------------------------------------------------------
@@ -534,7 +545,7 @@ exports.updateOrder = async (req, res) => {
           // Aplica ajuste de stock
           for (const n of normalizedNext) {
             if (n.diff !== 0) {
-              const nextStock = n.currentStock - n.diff; // diff>0 disminuye; diff<0 aumenta
+              const nextStock = n.currentStock - n.diff;
               if (nextStock < 0)
                 throw new Error(`Stock insuficiente para ${n.product.name}`);
               n.product.variants[n.vIndex].stock = nextStock;
@@ -547,12 +558,26 @@ exports.updateOrder = async (req, res) => {
           for (const n of normalizedNext) {
             try {
               const pid = n.productId || (n.product && n.product._id);
-              if (pid) await emitOutOfStockAlertIfNeeded(pid);
+              if (pid) {
+                console.log("[Alerta] Verificando variante order (update)", {
+                  product: String(pid),
+                  size: String(n.sizeId),
+                  color: String(n.colorId),
+                });
+
+                await emitVariantOutOfStockAlertIfNeeded(
+                  pid,
+                  n.sizeId,
+                  n.colorId
+                );
+                await emitVariantLowStockAlertIfNeeded(
+                  pid,
+                  n.sizeId,
+                  n.colorId
+                );
+              }
             } catch (e) {
-              console.warn(
-                "emitOutOfStockAlertIfNeeded (update) error:",
-                e?.message || e
-              );
+              console.warn("emitVariant... (update) error:", e?.message || e);
             }
           }
           // -----------------------------------------------------------------------

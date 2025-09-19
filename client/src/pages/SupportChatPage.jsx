@@ -20,7 +20,8 @@ const SupportChatPage = () => {
 
   const getTargetId = () => {
     if (!user) return null;
-    if (user.role === "user") return "687c285756076cf6e9836fce"; // ID del admin 
+    // ID del admin 
+    if (user.role === "user") return "687c285756076cf6e9836fce"; 
     if (user.role === "admin") return withUserId || null;
     return null;
   };
@@ -40,7 +41,7 @@ const SupportChatPage = () => {
       await fetchUnreadMessagesCount();
     };
 
-    loadMessages(); // solo al montar
+    loadMessages();
 
     return () => {
       // limpieza automática

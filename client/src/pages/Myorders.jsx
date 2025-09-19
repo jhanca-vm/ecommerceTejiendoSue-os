@@ -18,14 +18,8 @@ const unitFromOrderItem = (it) =>
     it?.unitPrice ?? it?.product?.effectivePrice ?? it?.product?.price ?? 0
   );
 
-const humanCode = (order) =>
-  `${new Date(order.createdAt || Date.now())
-    .toISOString()
-    .slice(0, 10)
-    .replace(/-/g, "")}-${String(order._id).slice(-6).toUpperCase()}`;
-
 const shortId = (id = "") =>
-  id ? `#${String(id).slice(-6).toUpperCase()}` : "";
+  id ? `${String(id).slice(-8).toUpperCase()}` : "";
 
 const stepIndexFromStatus = (status) => {
   switch ((status || "").toLowerCase()) {
@@ -124,8 +118,6 @@ const MyOrdersPage = () => {
                 0
               ) || 0;
 
-            const code = humanCode(order);
-
             const shipping = Number(order.shippingCost || 0);
             const total = Number(order.total ?? subtotal + shipping);
 
@@ -134,18 +126,8 @@ const MyOrdersPage = () => {
                 {/* Encabezado */}
                 <header className="order__head">
                   <div className="order__meta">
-                    <button
-                      className="order__id"
-                      type="button"
-                      title="Copiar código de pedido"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard?.writeText(code);
-                        } catch {}
-                      }}
-                    >
-                      {code}
-                    </button>
+                    <p>Pedido #</p>
+                    <span className="order__id">{shortId(order._id)}</span>
                     <time className="order__date">{created}</time>
                   </div>
                   <StatusBadge status={order.status} />

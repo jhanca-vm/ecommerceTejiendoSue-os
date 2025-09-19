@@ -82,7 +82,6 @@ const ProductListBlocks = ({ product, onAddToCart }) => {
           <span className="plb__badge plb__badge--soldout">Agotado</span>
         )}
 
-        {/* ❤️ Botón real conectado al contexto (guest/local + user/backend) */}
         <FavoriteButton productId={product?._id} className="plb__fav" />
 
         <Link

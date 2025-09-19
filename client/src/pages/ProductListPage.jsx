@@ -117,7 +117,7 @@ export default function ProductList() {
     setLoading(true);
 
     apiUrl
-      .get("products/sections", { params: { limit: 10 } }) // máx 10 por sección
+      .get("products/sections", { params: { limit: 10 } }) 
       .then((res) => {
         if (!mounted) return;
         setSections(res.data || {});

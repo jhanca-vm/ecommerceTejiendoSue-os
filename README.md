@@ -24,7 +24,7 @@ Plataforma de e-commerce para venta de productos tejidos artesanales. Desarrolla
 - **React** (v18) - Librería principal
 - **React Router** - Navegación
 - **Redux** - Gestión de estado
-- **Axios** - Comunicación con API
+- **apiClient** - Comunicación con API
 - **Bootstrap** - Estilos y componentes
 - **Sass** - Preprocesador CSS
 

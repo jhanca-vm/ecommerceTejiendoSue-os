@@ -7,7 +7,7 @@ export default function FiltersSidebar({ onSale, inStock, onToggleOnSale, onTogg
       <div style={{ display: "grid", gap: 8 }}>
         <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={onSale} onChange={onToggleOnSale} />
-          En promoción
+          En promociónes
         </label>
         <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={inStock} onChange={onToggleInStock} />

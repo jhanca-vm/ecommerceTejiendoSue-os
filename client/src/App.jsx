@@ -55,7 +55,7 @@ import SlowPage from "./routes/SlowPage";
 
 async function seedCsrf() {
   try {
-    const { data } = await api.get("/csrf", { __internal: true }); // usa baseURL /api
+    const { data } = await api.get("/csrf", { __internal: true }); 
     if (data?.csrfToken) setCsrfToken(data.csrfToken);
   } catch (e) {
     console.warn("No se pudo inicializar CSRF", e?.message || e);

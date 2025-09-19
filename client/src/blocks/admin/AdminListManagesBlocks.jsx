@@ -1,14 +1,29 @@
-import { useState, useEffect, useContext, useMemo } from "react";
+// src/blocks/admin/AdminListManagesBlocks.jsx
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaTimesCircle, FaPlusCircle } from "react-icons/fa";
 
-import apiUrl from "../../api/apiClient";
-
-import { AuthContext } from "../../contexts/AuthContext";
+import api, { cancelAllActiveRequests } from "../../api/apiClient";
 import { useToast } from "../../contexts/ToastContext";
 
-const AdminListManager = ({ title, apiEndpoint, fieldName }) => {
-  const { token } = useContext(AuthContext); 
+/**
+ * AdminListManager
+ * Props:
+ *  - title: string (visible)
+ *  - path: string -> ej: "/sizes", "/colors", "/categories"
+ *  - fieldName: string -> ej: "label" | "name"
+ *  - idField?: string -> por defecto "_id"
+ *  - normalizeIn?: (item) => item
+ *  - normalizeOut?: (payload) => payload
+ */
+const AdminListManager = ({
+  title = "Gestión",
+  path = "/sizes",
+  fieldName = "label",
+  idField = "_id",
+  normalizeIn,
+  normalizeOut,
+}) => {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -17,52 +32,65 @@ const AdminListManager = ({ title, apiEndpoint, fieldName }) => {
   const [editingId, setEditingId] = useState(null);
   const [editingValue, setEditingValue] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // Confirmación de borrado
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  const mountedRef = useRef(true);
 
   const singular = useMemo(() => {
     return title?.endsWith("s") ? title.slice(0, -1) : title || "ítem";
   }, [title]);
 
-  // 🔧 Normaliza el endpoint para NO duplicar /api (tu api ya lo agrega en baseURL)
+  const safeNormalizeIn = useMemo(
+    () => (typeof normalizeIn === "function" ? normalizeIn : (x) => x),
+    [normalizeIn]
+  );
+  const safeNormalizeOut = useMemo(
+    () => (typeof normalizeOut === "function" ? normalizeOut : (x) => x),
+    [normalizeOut]
+  );
+
+  // Normaliza path para no duplicar /api
   const norm = (p = "") => {
     let u = String(p).trim();
-    // si viene con http(s)://... lo dejamos en ruta pura
     u = u.replace(/^https?:\/\/[^/]+/i, "");
-    // quita un prefijo /api si lo trae
     u = u.replace(/^\/?api(\/|$)/i, "/");
-    // asegura 1 sola barra inicial
     if (!u.startsWith("/")) u = `/${u}`;
     return u;
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchItems();
+    return () => {
+      mountedRef.current = false;
+      try {
+        cancelAllActiveRequests();
+      } catch {}
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [path]);
 
   const fetchItems = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const res = await apiUrl.get(norm(apiEndpoint));
-      setItems(res.data || []);
+      const { data } = await api.get(norm(path));
+      const arr = Array.isArray(data) ? data : data?.items || [];
+      const cleaned = arr.map(safeNormalizeIn);
+      if (mountedRef.current) setItems(cleaned);
     } catch (err) {
       const msg = err?.response?.data?.error || "Error al cargar elementos";
       showToast(msg, "error");
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   };
 
   const handleCreate = async () => {
-    const value = newValue.trim();
+    const value = String(newValue || "").trim();
     if (!value) {
       showToast(`Ingresa un(a) ${singular.toLowerCase()}.`, "warning");
       return;
     }
-
-    // Evitar duplicados (case-insensitive)
     const exists = items.some(
       (it) => String(it[fieldName] || "").toLowerCase() === value.toLowerCase()
     );
@@ -71,75 +99,27 @@ const AdminListManager = ({ title, apiEndpoint, fieldName }) => {
       return;
     }
 
+    setLoading(true);
     try {
-      setLoading(true);
-      await apiUrl.post(norm(apiEndpoint), { [fieldName]: value });
-      showToast(`${singular} creado con éxito`, "success");
-      setNewValue("");
-      fetchItems();
+      const payload = safeNormalizeOut({ [fieldName]: value });
+      const { data } = await api.post(norm(path), payload);
+      const created = safeNormalizeIn(data?.item || data);
+      if (mountedRef.current) {
+        setItems((prev) => [created, ...prev]);
+        setNewValue("");
+        showToast(`${singular} creado con éxito`, "success");
+      }
     } catch (err) {
       const msg = err?.response?.data?.error || "Error al crear";
       showToast(msg, "error");
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
-  };
-
-  const handleEdit = async (id) => {
-    const value = editingValue.trim();
-    if (!value) {
-      showToast("El valor no puede estar vacío.", "warning");
-      return;
-    }
-
-    // Evitar duplicados contra otros items
-    const exists = items.some(
-      (it) =>
-        it._id !== id &&
-        String(it[fieldName] || "").toLowerCase() === value.toLowerCase()
-    );
-    if (exists) {
-      showToast(`${singular} ya existe.`, "warning");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await apiUrl.put(`${norm(apiEndpoint)}/${id}`, { [fieldName]: value });
-      showToast(`${singular} actualizado`, "success");
-      setEditingId(null);
-      setEditingValue("");
-      fetchItems();
-    } catch (err) {
-      const msg = err?.response?.data?.error || "Error al actualizar";
-      showToast(msg, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      setLoading(true);
-      await apiUrl.delete(`${norm(apiEndpoint)}/${id}`);
-      showToast(`${singular} eliminado`, "success");
-      setConfirmDeleteId(null);
-      fetchItems();
-    } catch (err) {
-      const msg = err?.response?.data?.error || "Error al eliminar";
-      showToast(msg, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCancel = () => {
-    navigate("/admin/products");
   };
 
   const startEdit = (item) => {
-    setEditingId(item._id);
-    setEditingValue(item[fieldName]);
+    setEditingId(item?.[idField]);
+    setEditingValue(item?.[fieldName] ?? "");
   };
 
   const cancelEdit = () => {
@@ -147,15 +127,75 @@ const AdminListManager = ({ title, apiEndpoint, fieldName }) => {
     setEditingValue("");
   };
 
+  const handleUpdate = async (id) => {
+    const value = String(editingValue || "").trim();
+    if (!value) {
+      showToast("El valor no puede estar vacío.", "warning");
+      return;
+    }
+    const exists = items.some(
+      (it) =>
+        String(it[idField]) !== String(id) &&
+        String(it[fieldName] || "").toLowerCase() === value.toLowerCase()
+    );
+    if (exists) {
+      showToast(`${singular} ya existe.`, "warning");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = safeNormalizeOut({ [fieldName]: value });
+      const { data } = await api.put(`${norm(path)}/${id}`, payload);
+      const updated = safeNormalizeIn(data?.item || data);
+      if (mountedRef.current) {
+        setItems((prev) =>
+          prev.map((it) => (String(it[idField]) === String(id) ? updated : it))
+        );
+        cancelEdit();
+        showToast(`${singular} actualizado`, "success");
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.error || "Error al actualizar";
+      showToast(msg, "error");
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      await api.delete(`${norm(path)}/${id}`);
+      if (mountedRef.current) {
+        setItems((prev) =>
+          prev.filter((it) => String(it[idField]) !== String(id))
+        );
+        showToast(`${singular} eliminado`, "success");
+        setConfirmDeleteId(null);
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.error || "Error al eliminar";
+      showToast(msg, "error");
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  };
+
   const onKeyDownEdit = (e, id) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      handleEdit(id);
+      handleUpdate(id);
     }
     if (e.key === "Escape") {
       e.preventDefault();
       cancelEdit();
     }
+  };
+
+  const handleCancel = () => {
+    navigate("/admin/products");
   };
 
   return (
@@ -209,64 +249,70 @@ const AdminListManager = ({ title, apiEndpoint, fieldName }) => {
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
-                <tr key={item._id}>
-                  <td>
-                    {editingId === item._id ? (
-                      <input
-                        type="text"
-                        value={editingValue}
-                        onChange={(e) => setEditingValue(e.target.value)}
-                        onKeyDown={(e) => onKeyDownEdit(e, item._id)}
-                        autoFocus
-                      />
-                    ) : (
-                      <span className="alm-item-text">{item[fieldName]}</span>
-                    )}
-                  </td>
-                  <td className="actions">
-                    {editingId === item._id ? (
-                      <>
-                        <button
-                          className="btn btn--primary btn-sm"
-                          onClick={() => handleEdit(item._id)}
-                          disabled={loading}
-                          title="Guardar cambios"
-                        >
-                          Guardar
-                        </button>
-                        <button
-                          className="btn btn--muted btn-sm"
-                          onClick={cancelEdit}
-                          disabled={loading}
-                          title="Cancelar edición"
-                        >
-                          Cancelar
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          className="btn btn--ghost btn-sm"
-                          onClick={() => startEdit(item)}
-                          disabled={loading}
-                          title="Editar"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          className="btn btn--danger btn-sm"
-                          onClick={() => setConfirmDeleteId(item._id)}
-                          disabled={loading}
-                          title="Eliminar"
-                        >
-                          Eliminar
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))
+              items.map((item) => {
+                const id = item?.[idField];
+                const isEditing = String(editingId) === String(id);
+                return (
+                  <tr key={id}>
+                    <td>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editingValue}
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          onKeyDown={(e) => onKeyDownEdit(e, id)}
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="alm-item-text">
+                          {item?.[fieldName]}
+                        </span>
+                      )}
+                    </td>
+                    <td className="actions">
+                      {isEditing ? (
+                        <>
+                          <button
+                            className="btn btn--primary btn-sm"
+                            onClick={() => handleUpdate(id)}
+                            disabled={loading || !editingValue.trim()}
+                            title="Guardar cambios"
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            className="btn btn--muted btn-sm"
+                            onClick={cancelEdit}
+                            disabled={loading}
+                            title="Cancelar edición"
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="btn btn--ghost btn-sm"
+                            onClick={() => startEdit(item)}
+                            disabled={loading}
+                            title="Editar"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            className="btn btn--danger btn-sm"
+                            onClick={() => setConfirmDeleteId(id)}
+                            disabled={loading}
+                            title="Eliminar"
+                          >
+                            Eliminar
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

@@ -8,6 +8,7 @@ import CategoryHeader from "../../blocks/users/catalog/CategoryHeader";
 import FiltersSidebar from "../../blocks/users/catalog/FiltersSidebar";
 
 import SortBar from "../../blocks/users/catalog/SortBar";
+import { color } from "framer-motion";
 
 function useQuery() {
   const { search } = useLocation();
@@ -135,7 +136,6 @@ export default function CatalogPage() {
           onToggleInStock={onToggleInStock}
           sizesFacet={facets.sizes}
           colorsFacet={facets.colors}
-          // TODO: podrías manejar rangos de precio y selección de talla/color aquí
         />
       </aside>
 

@@ -9,6 +9,8 @@ import ProductPriceBlock from "../ProductPrice";
 import FavoriteButton from "./FavoriteButton";
 import CheckoutModal from "../users/CheckoutModal";
 
+import { buildWhatsAppUrl } from "../../utils/whatsapp";
+
 /* ================= Helpers y utilidades ================= */
 const ADMIN_WHATSAPP = "573147788069";
 
@@ -303,36 +305,6 @@ const ProductDetailBlock = ({
       maximumFractionDigits: 0,
     });
 
-  const buildWhatsAppText = (order, shippingInfo, humanCode) => {
-    const lines = [];
-    const orderCode = humanCode || order._id;
-    lines.push("*Nuevo pedido*");
-    lines.push(`ID: ${orderCode}`);
-    lines.push("*Nuevo pedido*");
-    lines.push(`ID: ${order._id}`);
-    lines.push(`Cliente: ${user?.name || "N/A"} (${user?.email || ""})`);
-    if (shippingInfo) {
-      lines.push(
-        `Envío: ${shippingInfo.fullName} | Tel: ${shippingInfo.phone}`
-      );
-      lines.push(`${shippingInfo.address}, ${shippingInfo.city}`);
-      if (shippingInfo.notes) lines.push(`Notas: ${shippingInfo.notes}`);
-    }
-    lines.push("");
-    lines.push("*Detalle:*");
-    (order.items || []).forEach((it) => {
-      const name = it?.product?.name || "Producto";
-      const sku  = it?.product?.sku ? ` [${it.product.sku}]` : "";
-      const size = it?.size?.label ? ` / Talla: ${it.size.label}` : "";
-      const color = it?.color?.name ? ` / Color: ${it.color.name}` : "";
-      const line = Number(it.unitPrice || 0) * Number(it.quantity || 0) || 0;
-      lines.push(`- ${name}${sku}${size}${color} x${it.quantity} = ${fmtCOP(line)}`);
-    });
-    lines.push("");
-    lines.push(`*Total:* ${fmtCOP(order.total)}`);
-    return encodeURIComponent(lines.join("\n"));
-  };
-
   const handleBuyNow = () => {
     if (!user || user.role === "admin") {
       showToast("Debes iniciar sesión como usuario para comprar", "warning");
@@ -387,13 +359,20 @@ const ProductDetailBlock = ({
       try {
         await navigator.clipboard?.writeText(humanCode);
       } catch {}
-
-      const text = buildWhatsAppText(order, shippingInfo, humanCode);
-      window.open(
-        `https://wa.me/${ADMIN_WHATSAPP}?text=${text}`,
-        "_blank",
-        "noopener,noreferrer"
+      const waUrl = buildWhatsAppUrl(
+        ADMIN_WHATSAPP,
+        order,
+        { name: user?.name, email: user?.email },
+        shippingInfo,
+        {
+          humanCode,
+          includeSKU: true,
+          includeVariant: true,
+          includeImages: true,
+        }
       );
+      console.log(order.items);
+      window.open(waUrl, "_blank", "noopener,noreferrer");
 
       showToast(`Pedido creado: ${humanCode}`, "success");
       navigate("/my-orders");

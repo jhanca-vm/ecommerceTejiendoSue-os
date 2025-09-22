@@ -8,6 +8,7 @@ import apiUrl from "../api/apiClient";
 import CartItem from "../blocks/users/CartItem";
 import CheckoutModal from "../blocks/users/CheckoutModal";
 import { useToast } from "../contexts/ToastContext";
+import { buildWhatsAppUrl } from "../utils/whatsapp";
 
 const ADMIN_WHATSAPP = "573147788069";
 
@@ -172,36 +173,6 @@ const CartPage = () => {
     setOpenModal(true);
   };
 
-  const buildWhatsAppText = (order, shippingInfo, humanCode) => {
-    const lines = [];
-    const orderCode = humanCode || order._id;
-    lines.push("*Nuevo pedido*");
-    lines.push(`ID: ${orderCode}`);
-    if (shippingInfo) {
-      lines.push(
-        `Envío: ${shippingInfo.fullName} | Tel: ${shippingInfo.phone}`
-      );
-      lines.push(`${shippingInfo.address}, ${shippingInfo.city}`);
-      if (shippingInfo.notes) lines.push(`Notas: ${shippingInfo.notes}`);
-    }
-    lines.push("");
-    lines.push("*Detalle:*");
-    order.items.forEach((it) => {
-      const name = it?.product?.name || "Producto";
-      const sku  = it?.product?.sku ? ` [${it.product.sku}]` : "";
-      const size = it?.size?.label ? ` / Talla: ${it.size.label}` : "";
-      const color = it?.color?.name ? ` / Color: ${it.color.name}` : "";
-      lines.push(
-        `- ${name}${sku}${size}${color} x${it.quantity} = ${fmtCOP(
-          it.unitPrice * it.quantity
-        )}`
-      );
-    });
-    lines.push("");
-    lines.push(`*Total:* ${fmtCOP(order.total)}`);
-    return encodeURIComponent(lines.join("\n"));
-  };
-
   const confirmCheckout = async (shippingInfo) => {
     setLoading(true);
     try {
@@ -234,9 +205,19 @@ const CartPage = () => {
         await navigator.clipboard?.writeText(humanCode);
       } catch {}
 
-      const text = buildWhatsAppText(order, shippingInfo, humanCode);
-      const waLink = `https://wa.me/${ADMIN_WHATSAPP}?text=${text}`;
-      window.open(waLink, "_blank", "noopener,noreferrer");
+      const waUrl = buildWhatsAppUrl(
+        ADMIN_WHATSAPP,
+        order,
+        { name: user?.name, email: user?.email },
+        shippingInfo,
+        {
+          humanCode,
+          includeSKU: true,
+          includeVariant: true,
+          includeImages: true,
+        }
+      );
+      window.open(waUrl, "_blank", "noopener,noreferrer");
 
       showToast(`Pedido creado: ${humanCode}`, "success");
       clearCart();

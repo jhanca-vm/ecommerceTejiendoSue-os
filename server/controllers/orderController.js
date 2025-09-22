@@ -16,6 +16,27 @@ const Size = require("../models/Size");
 const Color = require("../models/Color");
 
 // === NUEVO: helpers de estado ===
+const toObjectId = (v) =>
+  v && mongoose.Types.ObjectId.isValid(String(v))
+    ? new mongoose.Types.ObjectId(String(v))
+    : null;
+
+const unitFrom = (p) =>
+  typeof p?.effectivePrice === "number"
+    ? Number(p.effectivePrice)
+    : Number(p?.price || 0);
+
+// Encapsulamos el populate que necesitamos en TODOS los lecturas/devoluciones
+const populateSpec = [
+  { path: "user", select: "name email" },
+  {
+    path: "items.product",
+    select: "name sku images price effectivePrice",
+  },
+  { path: "items.size", select: "label" },
+  { path: "items.color", select: "name" },
+];
+
 const VALID_STATUSES = [
   "pendiente",
   "facturado",
@@ -23,6 +44,13 @@ const VALID_STATUSES = [
   "entregado",
   "cancelado",
 ];
+
+async function populateOrderDoc(orderDoc) {
+  if (!orderDoc) return orderDoc;
+  await orderDoc.populate(populateSpec);
+  return orderDoc;
+}
+
 function pushStatusTransition(orderDoc, from, to, byUserId) {
   const now = new Date();
   orderDoc.status = to;
@@ -103,6 +131,7 @@ const buildVariantSku = async (productName, sizeId, colorId) => {
 };
 
 /** ========================== CREATE ========================== */
+/** ========================== CREATE ========================== */
 exports.createOrder = async (req, res) => {
   const compensations = [];
   try {
@@ -118,6 +147,8 @@ exports.createOrder = async (req, res) => {
         idempotencyKey,
       });
       if (existing) {
+        // ⬇⬇ NUEVO: populate antes de serializar
+        await existing.populate(populateSpec);
         return res.status(200).json({
           orderId: existing._id,
           order: serializeOrderForUser(existing),
@@ -289,6 +320,10 @@ exports.createOrder = async (req, res) => {
     }
 
     clearDashboardCache();
+
+    // ⬇⬇ NUEVO: populate ANTES de serializar/retornar
+    await order.populate(populateSpec);
+
     return res
       .status(201)
       .json({ orderId: order._id, order: serializeOrderForUser(order) });
@@ -314,10 +349,11 @@ exports.createOrder = async (req, res) => {
 };
 
 /** ========================== READ (USUARIO) ========================== */
+/** ========================== READ (USUARIO) ========================== */
 exports.getMyOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user.id })
-      .populate({ path: "items.product", select: "name price images" })
+      .populate({ path: "items.product", select: "name price images sku effectivePrice" }) 
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" })
       .sort({ createdAt: -1 });
@@ -329,6 +365,7 @@ exports.getMyOrders = async (req, res) => {
   }
 };
 
+
 /** ========================== READ (ADMIN) ========================== */
 exports.getAllOrders = async (req, res) => {
   try {
@@ -338,7 +375,7 @@ exports.getAllOrders = async (req, res) => {
 
     const orders = await Order.find(filter)
       .populate("user", "name email")
-      .populate({ path: "items.product", select: "name price" })
+      .populate({ path: "items.product", select: "name price sku images effectivePrice" }) 
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" })
       .sort({ createdAt: -1 });
@@ -406,7 +443,7 @@ exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
       .populate("user", "email name")
-      .populate({ path: "items.product", select: "name price" })
+      .populate({ path: "items.product", select: "name price sku images effectivePrice" })
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" });
 
@@ -423,7 +460,7 @@ exports.getMyOrderById = async (req, res) => {
   try {
     const id = req.params.id;
     const order = await Order.findById(id)
-      .populate({ path: "items.product", select: "name price images" })
+      .populate({ path: "items.product", select: "name price sku images effectivePrice" })
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" });
 
@@ -496,7 +533,12 @@ exports.updateOrder = async (req, res) => {
 
       await order.save();
 
+      await order.populate(populateSpec);
+
       clearDashboardCache();
+
+      await order.populate(populateSpec);
+
       return res.json({
         message: "Pedido actualizado",
         order: serializeOrderForAdmin(order),
@@ -783,6 +825,8 @@ exports.cancelOrder = async (req, res) => {
       pushStatusTransition(order, order.status, "cancelado", req.user?.id);
 
       await order.save({ session });
+
+      await order.populate(populateSpec);
 
       clearDashboardCache();
 

@@ -1,4 +1,3 @@
-// utils/stockAlerts.js
 const AdminAlert = require("../models/AdminAlert");
 const Product = require("../models/Product");
 

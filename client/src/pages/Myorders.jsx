@@ -2,7 +2,6 @@ import { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import apiUrl from "../api/apiClient";
-
 import { AuthContext } from "../contexts/AuthContext";
 
 /* ===== Helpers ===== */
@@ -46,6 +45,12 @@ const MyOrdersPage = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // URL completa de la imagen
+  /*const getImageUrl = (path) => {
+    if (!path) return "/placeholder.jpg";
+    return `${apiUrl.defaults.baseURL}${path}`;
+  };
+*/
   useEffect(() => {
     let mounted = true;
     if (!token) {
@@ -154,14 +159,15 @@ const MyOrdersPage = () => {
                     {order.items?.map((it, idx) => {
                       const p = it.product || {};
                       /*const img = p.images?.[0]
-                        ? `http://localhost:5000${p.images[0]}`
+                        ? getImageUrl(p.images[0])
                         : "/placeholder.jpg";*/
+
                       const up = unitFromOrderItem(it);
                       const line = up * Number(it.quantity || 0);
 
                       return (
                         <li key={idx} className="oi">
-                          {/*<img
+                         {/* <img
                             src={img}
                             alt={p.name || "Producto"}
                             onError={(e) =>
@@ -219,7 +225,7 @@ const MyOrdersPage = () => {
                   </aside>
                 </div>
 
-                {/* Datos de envío (mostrar para enviado/entregado) */}
+                {/* Datos de envío */}
                 {["enviado", "entregado"].includes(
                   String(order.status).toLowerCase()
                 ) && (

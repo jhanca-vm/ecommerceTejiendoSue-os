@@ -48,7 +48,7 @@ const Section = ({ title, items = [], toMore }) => {
     const vp = viewportRef.current;
     const el = trackRef.current;
     if (!vp || !el) return;
-    const step = Math.round(vp.clientWidth); // desplaza exactamente un viewport (≈5 cards)
+    const step = Math.round(vp.clientWidth); 
     el.scrollBy({ left: dir * step, behavior: "smooth" });
   };
 

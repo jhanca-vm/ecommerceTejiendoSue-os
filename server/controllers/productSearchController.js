@@ -2,19 +2,32 @@ const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const Category = require("../models/Category");
 
-// === Helpers de parsing/seguridad ===
+/* ================== Helpers generales y seguros ================== */
 const isId = (v) => /^[0-9a-fA-F]{24}$/.test(String(v));
 const parseIntSafe = (v, d) => {
   const n = Number.parseInt(v, 10);
   return Number.isFinite(n) ? n : d;
 };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-const asArray = (v) => (Array.isArray(v) ? v : v != null ? [v] : []);
 const now = () => new Date();
-const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** Suma robusta del stock total (variants puede ser null, [], o tener stock null/str) */
+const totalStockExpr = {
+  $sum: {
+    $map: {
+      input: { $ifNull: ["$variants", []] },
+      as: "v",
+      in: {
+        $toInt: {
+          $ifNull: ["$$v.stock", 0],
+        },
+      },
+    },
+  },
+};
+
+/** Precio efectivo aplicando descuentos solo si están habilitados y dentro de ventana */
 function computeEffectiveExpr() {
-  // Devuelve una expresión de agregación que calcula effectivePrice
   return {
     $let: {
       vars: {
@@ -31,18 +44,8 @@ function computeEffectiveExpr() {
           vars: {
             inWindow: {
               $and: [
-                {
-                  $or: [
-                    { $eq: ["$$startAt", null] },
-                    { $lte: ["$$startAt", "$$now"] },
-                  ],
-                },
-                {
-                  $or: [
-                    { $eq: ["$$endAt", null] },
-                    { $gte: ["$$endAt", "$$now"] },
-                  ],
-                },
+                { $or: [{ $eq: ["$$startAt", null] }, { $lte: ["$$startAt", "$$now"] }] },
+                { $or: [{ $eq: ["$$endAt", null] }, { $gte: ["$$endAt", "$$now"] }] },
               ],
             },
           },
@@ -58,25 +61,14 @@ function computeEffectiveExpr() {
                         {
                           $subtract: [
                             "$$price",
-                            {
-                              $multiply: [
-                                "$$price",
-                                { $divide: ["$$value", 100] },
-                              ],
-                            },
+                            { $multiply: ["$$price", { $divide: ["$$value", 100] }] },
                           ],
                         },
                         { $subtract: ["$$price", "$$value"] },
                       ],
                     },
                   },
-                  in: {
-                    $cond: [
-                      { $lt: ["$$calc", 0] },
-                      0,
-                      { $round: ["$$calc", 2] },
-                    ],
-                  },
+                  in: { $cond: [{ $lt: ["$$calc", 0] }, 0, { $round: ["$$calc", 2] }] },
                 },
               },
               "$$price",
@@ -88,6 +80,7 @@ function computeEffectiveExpr() {
   };
 }
 
+/** % de descuento a partir de price vs effectivePrice; nunca < 0 */
 function discountPercentExpr() {
   return {
     $let: {
@@ -121,37 +114,16 @@ function discountPercentExpr() {
   };
 }
 
-function sortMap(sort) {
-  switch (sort) {
-    case "price_asc":
-      return { effectivePrice: 1, _id: -1 };
-    case "price_desc":
-      return { effectivePrice: -1, _id: -1 };
-    case "best_sellers":
-      return { salesCount: -1, _id: -1 };
-    case "newest":
-      return { createdAt: -1, _id: -1 };
-    case "discount_desc":
-      return { discountPercent: -1, _id: -1 };
-    case "trending":
-      return { trendingScore: -1, _id: -1 };
-    // "relevance": si usas $text, usarías score. Aquí caemos a createdAt:
-    case "relevance":
-    default:
-      return { createdAt: -1, _id: -1 };
-  }
-}
-
 async function resolveCategoryId(categorySlugOrId) {
   if (!categorySlugOrId) return null;
-  if (isId(categorySlugOrId))
-    return new mongoose.Types.ObjectId(categorySlugOrId);
+  if (isId(categorySlugOrId)) return new mongoose.Types.ObjectId(categorySlugOrId);
   const cat = await Category.findOne({
     slug: String(categorySlugOrId).toLowerCase(),
     isActive: true,
   }).lean();
   return cat ? cat._id : null;
 }
+
 
 // ============================= /search =============================
 exports.searchProducts = async (req, res) => {
@@ -345,41 +317,51 @@ exports.searchProducts = async (req, res) => {
   }
 };
 
-// ============================= /sections =============================
+/* ============================= /sections ============================= */
 exports.getProductSections = async (req, res) => {
   try {
+    // -------- Query params “tuneables” ----------
     const limit = clamp(parseIntSafe(req.query.limit, 12) || 12, 4, 24);
     const catId = await resolveCategoryId(req.query.category);
 
-    const isAdmin = req.user?.role === "admin";
-    const visibleMatch = !isAdmin
-      ? [{ $match: { totalStock: { $gt: 0 } } }]
-      : [];
+    // Visibilidad: por defecto ocultamos sin stock a clientes
+    const inStockOnly = String(req.query.inStockOnly ?? "1") !== "0";
 
+    // Filtros opcionales por sección
+    const minDiscount = Math.max(0, parseIntSafe(req.query.minDiscount, 0)); // %
+    const minSales = Math.max(0, parseIntSafe(req.query.minSales, 0));       // best sellers
+    const daysNew = Math.max(0, parseIntSafe(req.query.daysNew, 0));         // novedades (días)
+    const trendingHorizonDays = Math.max(
+      0,
+      parseIntSafe(req.query.trendingHorizonDays, 0) // 0 = sin restricción
+    );
+
+    const isAdmin = req.user?.role === "admin";
+
+    // -------- Filtros base ----------
     const baseMatch = {};
     if (catId) baseMatch.categories = catId;
 
-    const nowDate = now();
+    const visibleMatch = !isAdmin && inStockOnly ? [{ $match: { totalStock: { $gt: 0 } } }] : [];
 
+    const nowDate = now();
+    const newSince = daysNew > 0 ? new Date(Date.now() - daysNew * 24 * 60 * 60 * 1000) : null;
+    const trendSince =
+      trendingHorizonDays > 0
+        ? new Date(Date.now() - trendingHorizonDays * 24 * 60 * 60 * 1000)
+        : null;
+
+    // -------- Sección: En promoción ----------
     const onSalePipeline = [
+      { $match: { ...baseMatch } },
+      // Ventana de descuento activa
       {
         $match: {
-          ...baseMatch,
           "discount.enabled": true,
           $expr: {
             $and: [
-              {
-                $or: [
-                  { $eq: ["$discount.startAt", null] },
-                  { $lte: ["$discount.startAt", nowDate] },
-                ],
-              },
-              {
-                $or: [
-                  { $eq: ["$discount.endAt", null] },
-                  { $gte: ["$discount.endAt", nowDate] },
-                ],
-              },
+              { $or: [{ $eq: ["$discount.startAt", null] }, { $lte: ["$discount.startAt", nowDate] }] },
+              { $or: [{ $eq: ["$discount.endAt", null] }, { $gte: ["$discount.endAt", nowDate] }] },
             ],
           },
         },
@@ -388,53 +370,58 @@ exports.getProductSections = async (req, res) => {
         $addFields: {
           effectivePrice: computeEffectiveExpr(),
           discountPercent: discountPercentExpr(),
-          totalStock: { $sum: "$variants.stock" },
+          totalStock: totalStockExpr,
         },
       },
       ...visibleMatch,
+      // Filtro opcional por % de descuento
+      ...(minDiscount > 0 ? [{ $match: { discountPercent: { $gte: minDiscount } } }] : []),
       { $sort: { discountPercent: -1, _id: -1 } },
       { $limit: limit },
       {
         $project: {
           _id: 1,
           name: 1,
+          images: 1,
           price: 1,
           effectivePrice: 1,
           discountPercent: 1,
-          images: 1,
         },
       },
     ];
 
+    // -------- Sección: Más vendidos ----------
     const bestSellersPipeline = [
-      { $match: baseMatch },
+      { $match: { ...baseMatch } },
       {
         $addFields: {
           effectivePrice: computeEffectiveExpr(),
-          totalStock: { $sum: "$variants.stock" },
+          totalStock: totalStockExpr,
         },
       },
       ...visibleMatch,
-      { $sort: { salesCount: -1, _id: -1 } },
+      ...(minSales > 0 ? [{ $match: { salesCount: { $gte: minSales } } }] : []),
+      { $sort: { salesCount: -1, createdAt: -1, _id: -1 } },
       { $limit: limit },
       {
         $project: {
           _id: 1,
           name: 1,
+          images: 1,
           price: 1,
           effectivePrice: 1,
-          images: 1,
           salesCount: 1,
         },
       },
     ];
 
+    // -------- Sección: Novedades ----------
     const newArrivalsPipeline = [
-      { $match: baseMatch },
+      { $match: { ...baseMatch, ...(newSince ? { createdAt: { $gte: newSince } } : {}) } },
       {
         $addFields: {
           effectivePrice: computeEffectiveExpr(),
-          totalStock: { $sum: "$variants.stock" },
+          totalStock: totalStockExpr,
         },
       },
       ...visibleMatch,
@@ -444,33 +431,36 @@ exports.getProductSections = async (req, res) => {
         $project: {
           _id: 1,
           name: 1,
+          images: 1,
           price: 1,
           effectivePrice: 1,
-          images: 1,
           createdAt: 1,
         },
       },
     ];
 
+    // -------- Sección: Tendencias ----------
+    // Si usas trendingScore "crudo", solo ordena; si quieres horizonte recorte por createdAt
     const trendingPipeline = [
-      { $match: baseMatch },
+      { $match: { ...baseMatch, ...(trendSince ? { createdAt: { $gte: trendSince } } : {}) } },
       {
         $addFields: {
           effectivePrice: computeEffectiveExpr(),
-          totalStock: { $sum: "$variants.stock" },
+          totalStock: totalStockExpr,
         },
       },
       ...visibleMatch,
-      { $sort: { trendingScore: -1, _id: -1 } },
+      { $sort: { trendingScore: -1, createdAt: -1, _id: -1 } },
       { $limit: limit },
       {
         $project: {
           _id: 1,
           name: 1,
+          images: 1,
           price: 1,
           effectivePrice: 1,
-          images: 1,
           trendingScore: 1,
+          createdAt: 1,
         },
       },
     ];

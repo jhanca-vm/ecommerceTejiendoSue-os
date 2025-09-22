@@ -40,17 +40,30 @@ const StatusBadge = ({ status }) => {
   return <span className={`obadge is-${s}`}>{status}</span>;
 };
 
+const fmtDate = (d) => (d ? new Date(d).toLocaleString() : "-");
+
+const labelFor = (k) => {
+  switch (k) {
+    case "pendiente":
+      return "Recibido";
+    case "facturado":
+      return "Facturado";
+    case "enviado":
+      return "Enviado";
+    case "entregado":
+      return "Entregado";
+    case "cancelado":
+      return "Cancelado";
+    default:
+      return k;
+  }
+};
+
 const MyOrdersPage = () => {
   const { token } = useContext(AuthContext);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // URL completa de la imagen
-  /*const getImageUrl = (path) => {
-    if (!path) return "/placeholder.jpg";
-    return `${apiUrl.defaults.baseURL}${path}`;
-  };
-*/
   useEffect(() => {
     let mounted = true;
     if (!token) {
@@ -113,9 +126,8 @@ const MyOrdersPage = () => {
         <div className="orders__list">
           {orders.map((order) => {
             const step = stepIndexFromStatus(order.status);
-            const created = order.createdAt
-              ? new Date(order.createdAt).toLocaleString()
-              : "-";
+            const created = fmtDate(order.createdAt);
+            const statusAt = fmtDate(order.currentStatusAt || order.updatedAt);
 
             const subtotal =
               order.items?.reduce(
@@ -126,6 +138,10 @@ const MyOrdersPage = () => {
             const shipping = Number(order.shippingCost || 0);
             const total = Number(order.total ?? subtotal + shipping);
 
+            const hasTimeline =
+              order?.statusTimestamps &&
+              Object.keys(order.statusTimestamps).length > 0;
+
             return (
               <article key={order._id} className="order">
                 {/* Encabezado */}
@@ -133,7 +149,10 @@ const MyOrdersPage = () => {
                   <div className="order__meta">
                     <p>Pedido #</p>
                     <span className="order__id">{shortId(order._id)}</span>
-                    <time className="order__date">{created}</time>
+                    <time className="order__date">{created} </time>
+                    <time className="order__date">
+                      Modificación de estado: <b>{statusAt}</b>
+                    </time>
                   </div>
                   <StatusBadge status={order.status} />
                 </header>
@@ -158,22 +177,11 @@ const MyOrdersPage = () => {
                   <ul className="order__items">
                     {order.items?.map((it, idx) => {
                       const p = it.product || {};
-                      /*const img = p.images?.[0]
-                        ? getImageUrl(p.images[0])
-                        : "/placeholder.jpg";*/
-
                       const up = unitFromOrderItem(it);
                       const line = up * Number(it.quantity || 0);
 
                       return (
                         <li key={idx} className="oi">
-                         {/* <img
-                            src={img}
-                            alt={p.name || "Producto"}
-                            onError={(e) =>
-                              (e.currentTarget.src = "/placeholder.jpg")
-                            }
-                          />*/}
                           <div className="oi__info">
                             <div className="oi__top">
                               <span className="oi__name">
@@ -225,7 +233,21 @@ const MyOrdersPage = () => {
                   </aside>
                 </div>
 
-                {/* Datos de envío */}
+                {/* Mini-timeline de fechas por estado (si viene del backend) */}
+                {hasTimeline && (
+                  <details className="order__timeline">
+                    <summary>Ver fechas por estado</summary>
+                    <ul>
+                      {Object.entries(order.statusTimestamps).map(([k, v]) => (
+                        <li key={k}>
+                          <b>{labelFor(k)}:</b> {fmtDate(v)}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+
+                {/* Datos de envío (mantengo tu condición actual) */}
                 {["enviado", "entregado"].includes(
                   String(order.status).toLowerCase()
                 ) && (

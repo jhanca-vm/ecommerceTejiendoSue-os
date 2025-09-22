@@ -15,6 +15,32 @@ const {
 const Size = require("../models/Size");
 const Color = require("../models/Color");
 
+// === NUEVO: helpers de estado ===
+const VALID_STATUSES = [
+  "pendiente",
+  "facturado",
+  "enviado",
+  "entregado",
+  "cancelado",
+];
+function pushStatusTransition(orderDoc, from, to, byUserId) {
+  const now = new Date();
+  orderDoc.status = to;
+  // history
+  orderDoc.statusHistory = orderDoc.statusHistory || [];
+  orderDoc.statusHistory.push({
+    from: from || null,
+    to,
+    at: now,
+    by: byUserId || null,
+  });
+  // per-status timestamp
+  orderDoc.statusTimestamps = orderDoc.statusTimestamps || {};
+  orderDoc.statusTimestamps[to] = now;
+  // current moment
+  orderDoc.currentStatusAt = now;
+}
+
 // Clave lógica de ítem (para comparar por variante)
 const itemKey = (i) =>
   `${String(i.product)}::${String(i.size || "")}::${String(i.color || "")}`;
@@ -31,19 +57,16 @@ function effectivePrice(product) {
   }
 }
 
-
 /* ===================== Helpers SKU por variante ===================== */
-// 3 primeras letras del nombre del producto, limpio, en MAYÚS
 const skuPrefixFromName = (name = "") => {
   const clean = String(name)
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "") 
-    .replace(/[^a-zA-Z]/g, "")       
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z]/g, "")
     .toUpperCase();
-  return clean.slice(0, 4).padEnd(4, "X"); 
+  return clean.slice(0, 4).padEnd(4, "X");
 };
 
-// caches simples en memoria por request
 const _sizeCache = new Map();
 const _colorCache = new Map();
 
@@ -65,32 +88,26 @@ const getColorName = async (colorId) => {
   return name;
 };
 
-// Construye SKU repetible por variante: PPP-{TALLA}-{COL}
 const buildVariantSku = async (productName, sizeId, colorId) => {
   const prefix = skuPrefixFromName(productName || "ITEM");
-  const sizeLabel = String(await getSizeLabel(sizeId)); // p.ej. "5" o "M"
-  const colorName = String(await getColorName(colorId)); // p.ej. "Blanco"
-  const colorCode = colorName
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z]/g, "")
-    .toUpperCase()
-    .slice(0, 3) || "COL";
+  const sizeLabel = String(await getSizeLabel(sizeId));
+  const colorName = String(await getColorName(colorId));
+  const colorCode =
+    colorName
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z]/g, "")
+      .toUpperCase()
+      .slice(0, 3) || "COL";
   return `${prefix}-${sizeLabel}-${colorCode}`;
 };
 
-/** ========================== CREATE (sin transacciones) ==========================
- *  - Sin usar $gte en filtros de update.
- *  - Decrementa con $inc y luego verifica que no quedó negativo.
- *  - Idempotencia opcional vía header "Idempotency-Key" o body.idempotencyKey
- *    (para deduplicar doble clics / reintentos desde el front).
- */
+/** ========================== CREATE ========================== */
 exports.createOrder = async (req, res) => {
   const compensations = [];
   try {
     const { items, shippingInfo } = req.body;
 
-    // Idempotencia (opcional pero recomendado)
     const idempotencyKey =
       (req.get("Idempotency-Key") || req.body?.idempotencyKey || "").trim() ||
       null;
@@ -114,7 +131,6 @@ exports.createOrder = async (req, res) => {
         .json({ error: "Debes incluir al menos un producto" });
     }
 
-    // Normaliza/valida payload + castea a ObjectId
     const normalizedItems = [];
     for (const item of items) {
       const productId = String(item.product || "").trim();
@@ -145,7 +161,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // Deduplicar líneas por variante sumando cantidades
+    // Deduplicar líneas
     const dedup = new Map();
     for (const it of normalizedItems) {
       const key = itemKey(it);
@@ -155,19 +171,17 @@ exports.createOrder = async (req, res) => {
     }
     const itemsToProcess = Array.from(dedup.values());
 
-    // Proceso ítem por ítem con decremento + verificación + posible rollback
     let total = 0;
     const itemsToSave = [];
 
     for (const it of itemsToProcess) {
-      // 1) Traer solo la variante exacta (NO usamos $gte en ningún lado)
       const prodDoc = await Product.findOne(
         {
           _id: it.product,
           "variants.size": it.size,
           "variants.color": it.color,
         },
-        { name: 1, price: 1, discount: 1, "variants.$": 1 } // 👈 no necesitamos product.sku aquí
+        { name: 1, price: 1, discount: 1, "variants.$": 1 }
       ).lean();
 
       if (!prodDoc || !prodDoc.variants || !prodDoc.variants[0]) {
@@ -183,7 +197,6 @@ exports.createOrder = async (req, res) => {
         );
       }
 
-      // 2) Decremento SIN $gte (evita problemas de casteo y tipos en DB)
       const dec = await Product.updateOne(
         {
           _id: it.product,
@@ -197,7 +210,6 @@ exports.createOrder = async (req, res) => {
         throw new Error(`Stock insuficiente (carrera) para ${prodDoc.name}.`);
       }
 
-      // 3) Verificar que no haya quedado negativo; si queda < 0, revertimos inmediatamente
       const checkDoc = await Product.findOne(
         {
           _id: it.product,
@@ -220,7 +232,6 @@ exports.createOrder = async (req, res) => {
         throw new Error(`Stock insuficiente (carrera) para ${prodDoc.name}.`);
       }
 
-      // 4) Registrar compensación por si falla otro ítem más adelante
       compensations.push({
         product: it.product,
         size: it.size,
@@ -228,16 +239,14 @@ exports.createOrder = async (req, res) => {
         qty: it.quantity,
       });
 
-      // 5) Precio unitario (aplica descuento si el modelo lo calcula)
       const unitPrice = effectivePrice(prodDoc);
       total += unitPrice * it.quantity;
 
-      // 6) SKU repetible por variante (PPP-{TALLA}-{COL})
       const lineSku = await buildVariantSku(prodDoc.name, it.size, it.color);
 
       itemsToSave.push({
         product: it.product,
-        sku: lineSku, // 👈 guardamos el SKU calculado
+        sku: lineSku,
         size: it.size,
         color: it.color,
         quantity: it.quantity,
@@ -247,13 +256,19 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // 7) Crear la orden
+    // === NUEVO: inicializar fechas de estado ===
+    const now = new Date();
     const order = await Order.create({
       user: req.user.id,
-      idempotencyKey: idempotencyKey || null, // <- se guarda si viene
+      idempotencyKey: idempotencyKey || null,
       items: itemsToSave,
       total: Number(total.toFixed(2)),
       status: "pendiente",
+      statusTimestamps: { pendiente: now },
+      statusHistory: [
+        { from: null, to: "pendiente", at: now, by: req.user.id },
+      ],
+      currentStatusAt: now,
       shippingInfo: shippingInfo && {
         fullName: String(shippingInfo.fullName || ""),
         phone: String(shippingInfo.phone || ""),
@@ -263,29 +278,21 @@ exports.createOrder = async (req, res) => {
       },
     });
 
-    // ---------- Emitir alerta de stock si corresponde ----------
+    // Alertas stock
     for (const it of itemsToProcess) {
       try {
-        console.log("[Alerta] Verificando variante", {
-          product: String(it.product),
-          size: String(it.size),
-          color: String(it.color),
-        });
-
         await emitVariantOutOfStockAlertIfNeeded(it.product, it.size, it.color);
         await emitVariantLowStockAlertIfNeeded(it.product, it.size, it.color);
       } catch (e) {
         console.warn("emitVariant... error:", e?.message || e);
       }
     }
-    // -----------------------------------------------------------
 
     clearDashboardCache();
     return res
       .status(201)
       .json({ orderId: order._id, order: serializeOrderForUser(order) });
   } catch (err) {
-    // COMPENSACIÓN: restituye todo lo decrementado si falló algo
     for (const c of compensations) {
       try {
         await Product.updateOne(
@@ -336,7 +343,8 @@ exports.getAllOrders = async (req, res) => {
       .populate({ path: "items.color", select: "name" })
       .sort({ createdAt: -1 });
 
-    res.json(orders);
+    // === NUEVO: normalizamos con serializer de admin
+    res.json(orders.map(serializeOrderForAdmin));
   } catch (err) {
     console.error("Error getAllOrders:", err);
     res.status(500).json({ error: err.message });
@@ -349,13 +357,7 @@ exports.updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const allowed = [
-      "pendiente",
-      "facturado",
-      "enviado",
-      "entregado",
-      "cancelado",
-    ];
+    const allowed = VALID_STATUSES;
     if (!allowed.includes(String(status))) {
       return res.status(400).json({ error: "Estado inválido" });
     }
@@ -364,12 +366,13 @@ exports.updateOrderStatus = async (req, res) => {
     if (!order) return res.status(404).json({ error: "Pedido no encontrado" });
 
     const prevStatus = order.status;
-    order.status = String(status);
+
+    // === NUEVO: registrar transición
+    pushStatusTransition(order, prevStatus, String(status), req.user?.id);
 
     // Consideramos "facturado" como "pago confirmado"
     const becomesPaid = status === "facturado";
 
-    // Sólo incrementar una vez en la vida de la orden
     if (becomesPaid && !order.wasCountedForBestsellers) {
       for (const item of order.items) {
         if (item.product && item.quantity > 0) {
@@ -386,7 +389,7 @@ exports.updateOrderStatus = async (req, res) => {
 
     return res.json({
       message: "Estado actualizado correctamente",
-      order,
+      order: serializeOrderForAdmin(order),
       prevStatus,
       incrementedBestSellers: becomesPaid && order.wasCountedForBestsellers,
     });
@@ -449,7 +452,6 @@ exports.updateOrder = async (req, res) => {
   } = req.body;
 
   try {
-    // Si NO hay cambios de items y SÍ hay cambios de metadatos → update simple SIN transacción
     const isItemsChange = Array.isArray(items);
     const isMetaChange =
       typeof status !== "undefined" ||
@@ -458,47 +460,54 @@ exports.updateOrder = async (req, res) => {
       typeof adminComment !== "undefined" ||
       (shippingInfo && typeof shippingInfo === "object");
 
+    // === NUEVO: si viene "status" pero NO cambios de items, no usar findByIdAndUpdate plano; hay que registrar transición
     if (!isItemsChange && isMetaChange) {
-      const $set = {};
-
-      if (typeof status !== "undefined") $set.status = status;
-      if (typeof trackingNumber !== "undefined")
-        $set.trackingNumber = String(trackingNumber || "");
-      if (typeof shippingCompany !== "undefined")
-        $set.shippingCompany = String(shippingCompany || "");
-      if (typeof adminComment !== "undefined")
-        $set.adminComment = String(adminComment || "");
-
-      if (shippingInfo && typeof shippingInfo === "object") {
-        if ("fullName" in shippingInfo)
-          $set["shippingInfo.fullName"] = String(shippingInfo.fullName || "");
-        if ("phone" in shippingInfo)
-          $set["shippingInfo.phone"] = String(shippingInfo.phone || "");
-        if ("address" in shippingInfo)
-          $set["shippingInfo.address"] = String(shippingInfo.address || "");
-        if ("city" in shippingInfo)
-          $set["shippingInfo.city"] = String(shippingInfo.city || "");
-        if ("notes" in shippingInfo)
-          $set["shippingInfo.notes"] = String(shippingInfo.notes || "");
-      }
-
-      const updated = await Order.findByIdAndUpdate(
-        id,
-        { $set },
-        { new: true }
-      );
-      if (!updated)
+      const order = await Order.findById(id);
+      if (!order)
         return res.status(404).json({ error: "Pedido no encontrado" });
 
+      if (typeof status !== "undefined") {
+        if (!VALID_STATUSES.includes(String(status))) {
+          return res.status(400).json({ error: "Estado inválido" });
+        }
+        pushStatusTransition(order, order.status, String(status), req.user?.id);
+      }
+
+      if (typeof trackingNumber !== "undefined")
+        order.trackingNumber = String(trackingNumber || "");
+      if (typeof shippingCompany !== "undefined")
+        order.shippingCompany = String(shippingCompany || "");
+      if (typeof adminComment !== "undefined")
+        order.adminComment = String(adminComment || "");
+
+      if (shippingInfo && typeof shippingInfo === "object") {
+        order.shippingInfo = { ...(order.shippingInfo || {}) };
+        if ("fullName" in shippingInfo)
+          order.shippingInfo.fullName = String(shippingInfo.fullName || "");
+        if ("phone" in shippingInfo)
+          order.shippingInfo.phone = String(shippingInfo.phone || "");
+        if ("address" in shippingInfo)
+          order.shippingInfo.address = String(shippingInfo.address || "");
+        if ("city" in shippingInfo)
+          order.shippingInfo.city = String(shippingInfo.city || "");
+        if ("notes" in shippingInfo)
+          order.shippingInfo.notes = String(shippingInfo.notes || "");
+      }
+
+      await order.save();
+
       clearDashboardCache();
-      return res.json({ message: "Pedido actualizado", order: updated });
+      return res.json({
+        message: "Pedido actualizado",
+        order: serializeOrderForAdmin(order),
+      });
     }
 
     if (!isItemsChange && !isMetaChange) {
       return res.status(400).json({ error: "No hay cambios para aplicar" });
     }
 
-    // ==== A partir de aquí: cambios de ITEMS → usar transacción (requiere replica set) ====
+    // ==== Cambios de ITEMS (con transacción) ====
     const session = await mongoose.startSession();
     try {
       const order = await Order.findById(id);
@@ -564,7 +573,6 @@ exports.updateOrder = async (req, res) => {
               );
             }
 
-            // Snapshots si es ítem nuevo o faltaban
             let stockBeforePurchase = prev?.stockBeforePurchase ?? null;
             let stockAtPurchase = prev?.stockAtPurchase ?? null;
 
@@ -594,7 +602,6 @@ exports.updateOrder = async (req, res) => {
             });
           }
 
-          // Aplica ajuste de stock
           for (const n of normalizedNext) {
             if (n.diff !== 0) {
               const nextStock = n.currentStock - n.diff;
@@ -605,18 +612,10 @@ exports.updateOrder = async (req, res) => {
             }
           }
 
-          // ---------- NUEVO: Emitir alertas de stock tras actualizar ítems ----------
-          // Emitimos por cada producto afectado para crear/actualizar alerta
           for (const n of normalizedNext) {
             try {
               const pid = n.productId || (n.product && n.product._id);
               if (pid) {
-                console.log("[Alerta] Verificando variante order (update)", {
-                  product: String(pid),
-                  size: String(n.sizeId),
-                  color: String(n.colorId),
-                });
-
                 await emitVariantOutOfStockAlertIfNeeded(
                   pid,
                   n.sizeId,
@@ -632,9 +631,7 @@ exports.updateOrder = async (req, res) => {
               console.warn("emitVariant... (update) error:", e?.message || e);
             }
           }
-          // -----------------------------------------------------------------------
 
-          // Reconstruye items preservando unitPrice/snapshots previos
           const rebuilt = [];
           for (const n of normalizedNext) {
             const key = `${String(n.productId)}::${String(n.sizeId)}::${String(
@@ -672,8 +669,17 @@ exports.updateOrder = async (req, res) => {
           order.items = rebuilt;
         }
 
-        // Campos adicionales
-        if (typeof status !== "undefined") order.status = status;
+        if (typeof status !== "undefined") {
+          if (!VALID_STATUSES.includes(String(status))) {
+            throw new Error("Estado inválido");
+          }
+          pushStatusTransition(
+            order,
+            order.status,
+            String(status),
+            req.user?.id
+          );
+        }
         if (typeof trackingNumber !== "undefined")
           order.trackingNumber = String(trackingNumber || "");
         if (typeof shippingCompany !== "undefined")
@@ -709,7 +715,6 @@ exports.updateOrder = async (req, res) => {
             };
         }
 
-        // Recalcula total
         let newTotal = 0;
         for (const it of order.items) {
           if (typeof it.unitPrice !== "number") {
@@ -723,7 +728,10 @@ exports.updateOrder = async (req, res) => {
         await order.save({ session });
 
         clearDashboardCache();
-        res.json({ message: "Pedido actualizado con control de stock", order });
+        res.json({
+          message: "Pedido actualizado con control de stock",
+          order: serializeOrderForAdmin(order),
+        });
       });
     } catch (txErr) {
       console.error("Error actualizando pedido (transacción):", txErr);
@@ -771,12 +779,17 @@ exports.cancelOrder = async (req, res) => {
         }
       }
 
-      order.status = "cancelado";
+      // === NUEVO: transición a cancelado
+      pushStatusTransition(order, order.status, "cancelado", req.user?.id);
+
       await order.save({ session });
 
       clearDashboardCache();
 
-      res.json({ message: "Pedido cancelado y stock restablecido", order });
+      res.json({
+        message: "Pedido cancelado y stock restablecido",
+        order: serializeOrderForAdmin(order),
+      });
     });
   } catch (err) {
     console.error("Error al cancelar pedido:", err);

@@ -17,7 +17,28 @@ import {
   FaUser,
   FaTruck,
   FaClipboardList,
+  FaClock,
+  FaHistory,
 } from "react-icons/fa";
+
+const fmtDate = (d) => (d ? new Date(d).toLocaleString() : "-");
+
+const labelFor = (k) => {
+  switch (k) {
+    case "pendiente":
+      return "Recibido";
+    case "facturado":
+      return "Facturado";
+    case "enviado":
+      return "Enviado";
+    case "entregado":
+      return "Entregado";
+    case "cancelado":
+      return "Cancelado";
+    default:
+      return k;
+  }
+};
 
 const AdminOrderDetailPage = () => {
   const { id } = useParams();
@@ -140,10 +161,17 @@ const AdminOrderDetailPage = () => {
     doc.text(`ID del pedido: ${order._id}`, 14, 20);
     doc.text(`Usuario Nombre: ${order.user?.name || "N/A"}`, 14, 26);
     doc.text(`Usuario Correo: ${order.user?.email || "N/A"}`, 14, 32);
-    doc.text(`Fecha: ${new Date(order.createdAt).toLocaleString()}`, 14, 38);
+    doc.text(`Creado: ${fmtDate(order.createdAt)}`, 14, 38);
     doc.text(`Estado: ${order.status}`, 14, 44);
+    doc.text(
+      `Fecha estado actual: ${fmtDate(
+        order.currentStatusAt || order.updatedAt
+      )}`,
+      14,
+      50
+    );
 
-    let y = 50;
+    let y = 56;
     if (order.trackingNumber) {
       doc.text(`Guía: ${order.trackingNumber}`, 14, y);
       y += 6;
@@ -249,12 +277,37 @@ const AdminOrderDetailPage = () => {
       doc.text(order.adminComment, 14, endY + 22);
     }
 
+    // Fechas por estado (si vienen)
+    if (order.statusTimestamps && Object.keys(order.statusTimestamps).length) {
+      let y2 = endY + 30;
+      doc.setFontSize(12);
+      doc.text("Fechas por estado", 14, y2);
+      y2 += 6;
+
+      const stRows = Object.entries(order.statusTimestamps).map(([k, v]) => ({
+        estado: labelFor(k),
+        fecha: fmtDate(v),
+      }));
+
+      autoTable(doc, {
+        startY: y2,
+        head: [["Estado", "Fecha"]],
+        body: stRows.map((r) => [r.estado, r.fecha]),
+        styles: { fontSize: 9, cellPadding: 2 },
+        headStyles: { fillColor: [90, 90, 90], textColor: 255 },
+      });
+    }
+
     doc.save(`pedido_${order._id}.pdf`);
   };
 
   if (!order) return <p className="loading">Cargando detalles del pedido...</p>;
 
   const priceFmt = (n) => formatCOP(n);
+
+  const statusHistory = Array.isArray(order.statusHistory)
+    ? order.statusHistory
+    : [];
 
   return (
     <div className="admin-order-detail">
@@ -273,6 +326,15 @@ const AdminOrderDetailPage = () => {
         </p>
         <p className="field">
           <strong>Estado actual:</strong> {order.status}
+        </p>
+        <p className="field">
+          <strong>
+            <FaClock className="icon" /> Fecha estado actual:
+          </strong>{" "}
+          {fmtDate(order.currentStatusAt || order.updatedAt)}
+        </p>
+        <p className="field">
+          <strong>Creado:</strong> {fmtDate(order.createdAt)}
         </p>
       </div>
 
@@ -349,6 +411,65 @@ const AdminOrderDetailPage = () => {
           </table>
         </div>
       </div>
+
+      {/* Fechas por estado */}
+      {order?.statusTimestamps && (
+        <div className="section">
+          <h3 className="section__title">
+            <FaClock className="icon" /> Fechas por estado
+          </h3>
+          <div className="table-responsive">
+            <table className="table table-compact">
+              <thead>
+                <tr>
+                  <th>Estado</th>
+                  <th>Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(order.statusTimestamps).map(([k, v]) => (
+                  <tr key={k}>
+                    <td>{labelFor(k)}</td>
+                    <td>{fmtDate(v)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Historial de estados */}
+      {statusHistory.length > 0 && (
+        <div className="section">
+          <h3 className="section__title">
+            <FaHistory className="icon" /> Historial de estados
+          </h3>
+          <div className="table-responsive">
+            <table className="table table-compact">
+              <thead>
+                <tr>
+                  <th>Desde</th>
+                  <th>Hacia</th>
+                  <th>Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statusHistory
+                  .slice()
+                  .sort((a, b) => new Date(b.at) - new Date(a.at))
+                  .map((h, i) => (
+                    <tr key={i}>
+                      <td>{labelFor(h.from)}</td>
+                      <td>{labelFor(h.to)}</td>
+                      <td>{fmtDate(h.at)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Metadatos editables */}
       <div className="section">

@@ -34,9 +34,12 @@ router.get("/", async (req, res) => {
       AdminAlert.find(filter)
         .sort({ createdAt: -1 })
         .limit(limit)
+        // inventario
         .populate({ path: "product", select: "name" })
-        .populate({ path: "variant.size", select: "label" }) // <- ¡clave!
-        .populate({ path: "variant.color", select: "name" }) // <- ¡clave!
+        .populate({ path: "variant.size", select: "label" })
+        .populate({ path: "variant.color", select: "name" })
+        // pedidos estancados
+        .populate({ path: "order", select: "status currentStatusAt createdAt" })
         .lean(),
       AdminAlert.countDocuments({ seen: false }),
     ]);
@@ -50,7 +53,6 @@ router.get("/", async (req, res) => {
 
 /**
  * PATCH /api/admin/alerts/seen-all
- * Body: { seen: true }
  */
 router.patch("/seen-all", async (req, res) => {
   try {

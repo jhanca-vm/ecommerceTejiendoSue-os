@@ -1,7 +1,9 @@
 const AdminAlert = require("../models/AdminAlert");
 const Product = require("../models/Product");
+const Order = require("../models/Order");
 
 const LOW_STOCK_THRESHOLD = Number(process.env.LOW_STOCK_THRESHOLD || 3);
+const RENOTIFY_HOURS = Number(process.env.ORDER_STALE_RENOTIFY_HOURS || 24);
 
 // Helpers tiempo
 const startOfToday = () => {
@@ -19,6 +21,27 @@ function debugSchemaOnce() {
     console.log("[AdminAlert] createdAt instance:", inst);
   } catch {}
   debugSchemaOnce._done = true;
+}
+
+//helper para el estado de los pedidos estancados
+function hoursToMs(h) {
+  return Number(h) * 60 * 60 * 1000;
+}
+
+async function lastAlertWithin(orderId, status, withinMs) {
+  const last = await AdminAlert.findOne({
+    type: "ORDER_STALE_STATUS",
+    order: orderId,
+    orderStatus: status,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  if (!last) return false;
+  try {
+    return Date.now() - new Date(last.createdAt).getTime() <= withinMs;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -128,7 +151,73 @@ async function emitVariantLowStockAlertIfNeeded(productId, sizeId, colorId) {
   });
 }
 
+//funciones para el analicis del estado de los pedidos
+async function scanAndAlertStaleOrders(io) {
+  const now = Date.now();
+
+  const candidates = await Order.find(
+    {
+      status: { $in: ["pendiente", "facturado", "enviado"] },
+      currentStatusAt: { $type: "date" },
+    },
+    { status: 1, currentStatusAt: 1 }
+  ).lean();
+
+  let created = 0;
+
+  for (const o of candidates) {
+    const status = String(o.status);
+    const at = new Date(o.currentStatusAt || 0).getTime();
+    if (!at) continue;
+
+    const ageMs = now - at;
+    const thrMs = hoursToMs(SLA_HOURS[status] || 72);
+
+    if (ageMs >= thrMs) {
+      // Dedupe (re-alerta cada RENOTIFY_HOURS)
+      const skip = await lastAlertWithin(
+        o._id,
+        status,
+        hoursToMs(RENOTIFY_HOURS)
+      );
+      if (skip) continue;
+
+      const hours = Math.floor(ageMs / (60 * 60 * 1000));
+      const msg = `Pedido ${String(o._id)
+        .slice(-8)
+        .toUpperCase()} lleva ${hours}h en estado "${status}".`;
+
+      const alert = await AdminAlert.create({
+        type: "ORDER_STALE_STATUS",
+        order: o._id,
+        orderStatus: status,
+        message: msg,
+      });
+      created++;
+
+      // Socket.IO push a admins
+      if (io && typeof io.to === "function") {
+        io.to("role:admin").emit("admin:alert", {
+          _id: alert._id,
+          type: "ORDER_STALE_STATUS",
+          order: String(o._id),
+          orderStatus: status,
+          message: msg,
+          createdAt: alert.createdAt,
+        });
+      }
+    }
+  }
+
+  if (created > 0) {
+    console.log(
+      `[orderStaleAlerts] Generadas ${created} alertas de estancamiento.`
+    );
+  }
+}
+
 module.exports = {
   emitVariantOutOfStockAlertIfNeeded,
   emitVariantLowStockAlertIfNeeded,
+  scanAndAlertStaleOrders,
 };

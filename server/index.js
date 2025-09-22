@@ -17,8 +17,11 @@ const hpp = require("hpp");
 const slowDown = require("express-slow-down");
 const { errors: celebrateErrors } = require("celebrate");
 const jwt = require("jsonwebtoken");
+const cron = require("node-cron");
+const { scanAndAlertStaleOrders } = require("./utils/orderStaleAlerts");
 
 const { issueCsrfToken, requireCsrf } = require("./middleware/csrf");
+const initScheduler = require("./jobs/scheduler");
 
 // ======================= Entorno / Config =======================
 const {
@@ -127,7 +130,7 @@ const corsOptions = {
     "X-Req-Id",
     "Idempotency-Key",
     "If-Match",
-    "X-CSRF-Token", 
+    "X-CSRF-Token",
   ],
   exposedHeaders: ["X-Req-Id", "ETag"],
   maxAge: 86400,
@@ -247,7 +250,17 @@ const io = new Server(server, {
   transports: ["websocket"], //ver si en el hosting no soporta websockets los proxis se lo retira
   allowEIO3: false,
 });
+
 app.set("io", io);
+
+cron.schedule("5 * * * *", async () => {
+  try {
+    const ioInstance = app.get("io");
+    await scanAndAlertStaleOrders(ioInstance);
+  } catch (e) {
+    console.error("[cron] scanAndAlertStaleOrders error:", e?.message || e);
+  }
+});
 
 // Auth por JWT en handshake + rate limit de eventos
 io.use((socket, next) => {
@@ -447,6 +460,10 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/admin/alerts", adminAlertsRoutes);
+
+// ========= Scheduler  =========
+initScheduler(app);
+
 
 // ========== Errores de celebrate (si usas celebrate en rutas) ====
 app.use(celebrateErrors());

@@ -4,6 +4,25 @@ import { useNavigate } from "react-router-dom";
 import ConfirmModal from "../ConfirmModalBlock";
 import { formatCOP } from "../../utils/currency";
 
+const fmtDate = (d) => (d ? new Date(d).toLocaleString() : "-");
+
+const labelFor = (k) => {
+  switch (k) {
+    case "pendiente":
+      return "Recibido";
+    case "facturado":
+      return "Facturado";
+    case "enviado":
+      return "Enviado";
+    case "entregado":
+      return "Entregado";
+    case "cancelado":
+      return "Cancelado";
+    default:
+      return k;
+  }
+};
+
 const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
   const navigate = useNavigate();
 
@@ -13,7 +32,6 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
   const [confirmMode, setConfirmMode] = useState(null);
   const [pendingStatus, setPendingStatus] = useState("");
 
-  // Mantengo la lógica; agrego "cancelado" como opción de cambio desde "pendiente"
   const nextStatusOptions = useMemo(() => {
     switch (order.status) {
       case "pendiente":
@@ -87,6 +105,8 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
       it?.unitPrice ?? it?.product?.effectivePrice ?? it?.product?.price ?? 0
     );
 
+  const sinceCurrent = fmtDate(order.currentStatusAt || order.updatedAt);
+
   return (
     <article className="oc">
       <header className="oc__head">
@@ -109,7 +129,10 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
           <b>Email:</b> {order.user?.email || "N/A"}
         </span>
         <span>
-          <b>Fecha:</b> {new Date(order.createdAt).toLocaleString()}
+          <b>Creado:</b> {fmtDate(order.createdAt)}
+        </span>
+        <span>
+          <b>Modificado estado desde:</b> {sinceCurrent}
         </span>
         <span>
           <b>Total:</b> {formatCOP(order.total)}
@@ -140,7 +163,6 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
           <em className="oc__nochanges">No hay cambios disponibles</em>
         )}
         <div className="oc__spacer" />
-        {/* ⬇⬇ Estilo nuevo para el botón de detalle */}
         <button
           className="btn btn--detail"
           onClick={() => navigate(`/admin/orders/${order._id}`)}
@@ -197,6 +219,20 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
           </tfoot>
         </table>
       </div>
+
+      {/* Fechas por estado (si el backend las envía) */}
+      {order?.statusTimestamps && (
+        <details className="oc__timeline">
+          <summary>Fechas por estado</summary>
+          <ul className="timeline-list">
+            {Object.entries(order.statusTimestamps).map(([k, v]) => (
+              <li key={k}>
+                <b>{labelFor(k)}:</b> {fmtDate(v)}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {order.status === "pendiente" && (
         <div className="oc__actions">

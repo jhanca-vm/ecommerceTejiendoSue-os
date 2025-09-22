@@ -1,4 +1,3 @@
-// src/socket.js
 import { io } from "socket.io-client";
 
 // Asegúrate de que coincida con el backend

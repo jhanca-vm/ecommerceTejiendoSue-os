@@ -161,6 +161,9 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         order.user?.name || "N/A",
         order.user?.email || "N/A",
         dayjs(order.createdAt).format("YYYY-MM-DD HH:mm"),
+        dayjs(order.currentStatusAt || order.updatedAt).format(
+          "YYYY-MM-DD HH:mm"
+        ), // <-- nuevo campo
         item.product?.name || "Eliminado",
         item.size?.label || "-",
         item.color?.name || "-",
@@ -177,7 +180,8 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         [
           "Usuario",
           "Email",
-          "Fecha",
+          "Creado",
+          "Fecha estado actual",
           "Producto",
           "Talla",
           "Color",
@@ -226,7 +230,10 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
       (order.items || []).map((item) => ({
         ID: order._id,
         Usuario: order.user?.email || "N/A",
-        Fecha: dayjs(order.createdAt).format("YYYY-MM-DD HH:mm"),
+        Creado: dayjs(order.createdAt).format("YYYY-MM-DD HH:mm"),
+        "Fecha estado actual": dayjs(
+          order.currentStatusAt || order.updatedAt
+        ).format("YYYY-MM-DD HH:mm"), // <-- nuevo campo
         Producto: item.product?.name || "Eliminado",
         Talla: item.size?.label || "-",
         Color: item.color?.name || "-",

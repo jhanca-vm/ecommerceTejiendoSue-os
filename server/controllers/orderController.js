@@ -317,7 +317,7 @@ exports.createOrder = async (req, res) => {
 exports.getMyOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user.id })
-      .populate({ path: "items.product", select: "name price" })
+      .populate({ path: "items.product", select: "name price images" })
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" })
       .sort({ createdAt: -1 });
@@ -423,7 +423,7 @@ exports.getMyOrderById = async (req, res) => {
   try {
     const id = req.params.id;
     const order = await Order.findById(id)
-      .populate({ path: "items.product", select: "name price" })
+      .populate({ path: "items.product", select: "name price images" })
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" });
 

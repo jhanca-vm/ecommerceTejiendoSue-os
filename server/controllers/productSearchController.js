@@ -3,13 +3,78 @@ const Product = require("../models/Product");
 const Category = require("../models/Category");
 
 /* ================== Helpers generales y seguros ================== */
+
+// ¿es ObjectId válido?
 const isId = (v) => /^[0-9a-fA-F]{24}$/.test(String(v));
+
+// parseo de enteros seguro
 const parseIntSafe = (v, d) => {
   const n = Number.parseInt(v, 10);
   return Number.isFinite(n) ? n : d;
 };
+
+// clamp numérico
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
+// fecha "ahora" (por si reemplazas por serverTime centralizado luego)
 const now = () => new Date();
+
+// normaliza a array (corrige el ReferenceError que tenías)
+function asArray(v) {
+  if (Array.isArray(v)) return v;
+  if (v == null || v === "") return [];
+  return [v];
+}
+
+// boolean robusto para strings/números
+function toBool(v, def = false) {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(s)) return true;
+    if (["0", "false", "no", "off"].includes(s)) return false;
+  }
+  return def;
+}
+
+// escapar patrón para RegExp segura (evita ReDoS por caracteres especiales)
+function escapeRegex(str = "") {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// mapeo de ordenamientos
+function sortMap(key = "relevance") {
+  const k = String(key || "").toLowerCase();
+
+  switch (k) {
+    case "price_asc":
+    case "price-asc":
+      // ordenar por precio efectivo ascendente
+      return { effectivePrice: 1, _id: -1 };
+
+    case "price_desc":
+    case "price-desc":
+      return { effectivePrice: -1, _id: -1 };
+
+    case "newest":
+    case "created_desc":
+      return { createdAt: -1, _id: -1 };
+
+    case "oldest":
+    case "created_asc":
+      return { createdAt: 1, _id: 1 };
+
+    case "bestsellers":
+    case "sales_desc":
+      return { salesCount: -1, createdAt: -1, _id: -1 };
+
+    // “relevance”: sin texto-index aquí, usamos ventas + frescura como heurística
+    case "relevance":
+    default:
+      return { salesCount: -1, createdAt: -1, _id: -1 };
+  }
+}
 
 /** Suma robusta del stock total (variants puede ser null, [], o tener stock null/str) */
 const totalStockExpr = {
@@ -44,8 +109,18 @@ function computeEffectiveExpr() {
           vars: {
             inWindow: {
               $and: [
-                { $or: [{ $eq: ["$$startAt", null] }, { $lte: ["$$startAt", "$$now"] }] },
-                { $or: [{ $eq: ["$$endAt", null] }, { $gte: ["$$endAt", "$$now"] }] },
+                {
+                  $or: [
+                    { $eq: ["$$startAt", null] },
+                    { $lte: ["$$startAt", "$$now"] },
+                  ],
+                },
+                {
+                  $or: [
+                    { $eq: ["$$endAt", null] },
+                    { $gte: ["$$endAt", "$$now"] },
+                  ],
+                },
               ],
             },
           },
@@ -61,14 +136,25 @@ function computeEffectiveExpr() {
                         {
                           $subtract: [
                             "$$price",
-                            { $multiply: ["$$price", { $divide: ["$$value", 100] }] },
+                            {
+                              $multiply: [
+                                "$$price",
+                                { $divide: ["$$value", 100] },
+                              ],
+                            },
                           ],
                         },
                         { $subtract: ["$$price", "$$value"] },
                       ],
                     },
                   },
-                  in: { $cond: [{ $lt: ["$$calc", 0] }, 0, { $round: ["$$calc", 2] }] },
+                  in: {
+                    $cond: [
+                      { $lt: ["$$calc", 0] },
+                      0,
+                      { $round: ["$$calc", 2] },
+                    ],
+                  },
                 },
               },
               "$$price",
@@ -116,7 +202,8 @@ function discountPercentExpr() {
 
 async function resolveCategoryId(categorySlugOrId) {
   if (!categorySlugOrId) return null;
-  if (isId(categorySlugOrId)) return new mongoose.Types.ObjectId(categorySlugOrId);
+  if (isId(categorySlugOrId))
+    return new mongoose.Types.ObjectId(categorySlugOrId);
   const cat = await Category.findOne({
     slug: String(categorySlugOrId).toLowerCase(),
     isActive: true,
@@ -124,8 +211,7 @@ async function resolveCategoryId(categorySlugOrId) {
   return cat ? cat._id : null;
 }
 
-
-// ============================= /search =============================
+/* ============================= /search ============================= */
 exports.searchProducts = async (req, res) => {
   try {
     const page = clamp(parseIntSafe(req.query.page, 10) || 1, 1, 1000000);
@@ -133,11 +219,16 @@ exports.searchProducts = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const sort = String(req.query.sort || "relevance");
+
+    // búsqueda básica por nombre (regex escapado)
     const qRaw = (req.query.q || "").toString().slice(0, 64).trim();
     const q = qRaw ? escapeRegex(qRaw) : null;
 
+    // flags
     const onSale = String(req.query.onSale || "") === "1";
     const inStock = String(req.query.inStock || "") === "1";
+
+    // rango de precios (sobre precio EFECTIVO)
     const priceMin = Number.isFinite(Number(req.query.priceMin))
       ? Number(req.query.priceMin)
       : null;
@@ -145,15 +236,19 @@ exports.searchProducts = async (req, res) => {
       ? Number(req.query.priceMax)
       : null;
 
+    // filtros de variantes
     const sizes = asArray(req.query.sizes)
       .filter(isId)
       .map((s) => new mongoose.Types.ObjectId(s));
+
     const colors = asArray(req.query.colors)
       .filter(isId)
       .map((c) => new mongoose.Types.ObjectId(c));
 
+    // categoría por slug o id
     const categoryId = await resolveCategoryId(req.query.category);
 
+    // visibilidad: admin puede ver sin stock
     const isAdmin = req.user?.role === "admin";
 
     // $match base
@@ -161,6 +256,7 @@ exports.searchProducts = async (req, res) => {
     if (categoryId) match.categories = categoryId;
     if (q) match.name = { $regex: q, $options: "i" };
 
+    // descuento activo (con $expr en ventana)
     if (onSale) {
       match["discount.enabled"] = true;
       match.$expr = {
@@ -181,6 +277,7 @@ exports.searchProducts = async (req, res) => {
       };
     }
 
+    // filtros por variantes
     const andVariant = [];
     if (inStock) andVariant.push({ "variants.stock": { $gt: 0 } });
     if (sizes.length) andVariant.push({ "variants.size": { $in: sizes } });
@@ -196,9 +293,29 @@ exports.searchProducts = async (req, res) => {
         $addFields: {
           effectivePrice: computeEffectiveExpr(),
           discountPercent: discountPercentExpr(),
-          totalStock: { $sum: "$variants.stock" },
+          totalStock: totalStockExpr, // ⬅️ robusto (antes había un $sum directo)
         },
       },
+
+      // Filtro opcional por precio efectivo
+      ...(priceMin != null || priceMax != null
+        ? [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    ...(priceMin != null
+                      ? [{ $gte: ["$effectivePrice", priceMin] }]
+                      : []),
+                    ...(priceMax != null
+                      ? [{ $lte: ["$effectivePrice", priceMax] }]
+                      : []),
+                  ],
+                },
+              },
+            },
+          ]
+        : []),
 
       // Ocultar al público cuando totalStock === 0
       ...(!isAdmin ? [{ $match: { totalStock: { $gt: 0 } } }] : []),
@@ -211,7 +328,7 @@ exports.searchProducts = async (req, res) => {
             { $skip: skip },
             { $limit: limit },
 
-            // opcional: join categoría para traer nombre/slug
+            // join categoría para traer nombre/slug (opcional)
             {
               $lookup: {
                 from: "categories",
@@ -238,7 +355,7 @@ exports.searchProducts = async (req, res) => {
                   name: "$cat.name",
                   slug: "$cat.slug",
                 },
-                // puedes exponer flags útiles:
+                // exponer flag útil:
                 onSale: { $gt: ["$discountPercent", 0] },
               },
             },
@@ -329,8 +446,8 @@ exports.getProductSections = async (req, res) => {
 
     // Filtros opcionales por sección
     const minDiscount = Math.max(0, parseIntSafe(req.query.minDiscount, 0)); // %
-    const minSales = Math.max(0, parseIntSafe(req.query.minSales, 0));       // best sellers
-    const daysNew = Math.max(0, parseIntSafe(req.query.daysNew, 0));         // novedades (días)
+    const minSales = Math.max(0, parseIntSafe(req.query.minSales, 0)); // best sellers
+    const daysNew = Math.max(0, parseIntSafe(req.query.daysNew, 0)); // novedades (días)
     const trendingHorizonDays = Math.max(
       0,
       parseIntSafe(req.query.trendingHorizonDays, 0) // 0 = sin restricción
@@ -342,10 +459,12 @@ exports.getProductSections = async (req, res) => {
     const baseMatch = {};
     if (catId) baseMatch.categories = catId;
 
-    const visibleMatch = !isAdmin && inStockOnly ? [{ $match: { totalStock: { $gt: 0 } } }] : [];
+    const visibleMatch =
+      !isAdmin && inStockOnly ? [{ $match: { totalStock: { $gt: 0 } } }] : [];
 
     const nowDate = now();
-    const newSince = daysNew > 0 ? new Date(Date.now() - daysNew * 24 * 60 * 60 * 1000) : null;
+    const newSince =
+      daysNew > 0 ? new Date(Date.now() - daysNew * 24 * 60 * 60 * 1000) : null;
     const trendSince =
       trendingHorizonDays > 0
         ? new Date(Date.now() - trendingHorizonDays * 24 * 60 * 60 * 1000)
@@ -360,8 +479,18 @@ exports.getProductSections = async (req, res) => {
           "discount.enabled": true,
           $expr: {
             $and: [
-              { $or: [{ $eq: ["$discount.startAt", null] }, { $lte: ["$discount.startAt", nowDate] }] },
-              { $or: [{ $eq: ["$discount.endAt", null] }, { $gte: ["$discount.endAt", nowDate] }] },
+              {
+                $or: [
+                  { $eq: ["$discount.startAt", null] },
+                  { $lte: ["$discount.startAt", nowDate] },
+                ],
+              },
+              {
+                $or: [
+                  { $eq: ["$discount.endAt", null] },
+                  { $gte: ["$discount.endAt", nowDate] },
+                ],
+              },
             ],
           },
         },
@@ -375,7 +504,9 @@ exports.getProductSections = async (req, res) => {
       },
       ...visibleMatch,
       // Filtro opcional por % de descuento
-      ...(minDiscount > 0 ? [{ $match: { discountPercent: { $gte: minDiscount } } }] : []),
+      ...(minDiscount > 0
+        ? [{ $match: { discountPercent: { $gte: minDiscount } } }]
+        : []),
       { $sort: { discountPercent: -1, _id: -1 } },
       { $limit: limit },
       {
@@ -417,7 +548,12 @@ exports.getProductSections = async (req, res) => {
 
     // -------- Sección: Novedades ----------
     const newArrivalsPipeline = [
-      { $match: { ...baseMatch, ...(newSince ? { createdAt: { $gte: newSince } } : {}) } },
+      {
+        $match: {
+          ...baseMatch,
+          ...(newSince ? { createdAt: { $gte: newSince } } : {}),
+        },
+      },
       {
         $addFields: {
           effectivePrice: computeEffectiveExpr(),
@@ -440,9 +576,13 @@ exports.getProductSections = async (req, res) => {
     ];
 
     // -------- Sección: Tendencias ----------
-    // Si usas trendingScore "crudo", solo ordena; si quieres horizonte recorte por createdAt
     const trendingPipeline = [
-      { $match: { ...baseMatch, ...(trendSince ? { createdAt: { $gte: trendSince } } : {}) } },
+      {
+        $match: {
+          ...baseMatch,
+          ...(trendSince ? { createdAt: { $gte: trendSince } } : {}),
+        },
+      },
       {
         $addFields: {
           effectivePrice: computeEffectiveExpr(),

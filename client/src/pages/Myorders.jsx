@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import apiUrl from "../api/apiClient";
+import apiUrl, { getBaseUrl } from "../api/apiClient";
 import { AuthContext } from "../contexts/AuthContext";
 
 /* ===== Helpers ===== */
@@ -12,6 +12,17 @@ const fmtCOP = (n) =>
     maximumFractionDigits: 0,
   });
 
+const getImageUrl = (path) => {
+  if (!path) return "/placeholder.jpg";
+  // Si ya viene absoluta (http/https), úsala tal cual
+  if (/^https?:\/\//i.test(path)) return path;
+
+  const base = getBaseUrl(); // 👈 LLAMAR la función
+  // path comenzando por /uploads/** (backend sirve estático sin /api)
+  if (path.startsWith("/uploads")) return `${base}${path}`;
+  // si guardaste sólo el filename, manda a carpeta products
+  return `${base}/uploads/products/${path}`;
+};
 const unitFromOrderItem = (it) =>
   Number(
     it?.unitPrice ?? it?.product?.effectivePrice ?? it?.product?.price ?? 0
@@ -182,6 +193,14 @@ const MyOrdersPage = () => {
 
                       return (
                         <li key={idx} className="oi">
+                          <img
+                            src={getImageUrl(p?.images?.[0])}
+                            alt={p?.name || "Producto"}
+                            onError={(e) =>
+                              (e.currentTarget.src = "/placeholder.jpg")
+                            }
+                            className="oi__img"
+                          />
                           <div className="oi__info">
                             <div className="oi__top">
                               <span className="oi__name">

@@ -1,11 +1,10 @@
 const mongoose = require("mongoose");
 
-// Util: slugify simple (sin dependencias)
 function slugify(str = "") {
   return String(str)
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")     
-    .replace(/[^a-zA-Z0-9\s-]/g, "")     
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-")
     .toLowerCase();
@@ -14,13 +13,27 @@ function slugify(str = "") {
 const categorySchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true, trim: true },
-    slug: { type: String, required: true, unique: true, index: true },
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+      lowercase: true,
+      trim: true,
+    },
     description: { type: String, default: "" },
-    heroImage: { type: String, default: "" },          // opcional UX
-    seoTitle: { type: String, default: "" },           // opcional SEO
-    seoDescription: { type: String, default: "" },     // opcional SEO
-    isActive: { type: Boolean, default: true },        // opcional
-    sortPriority: { type: Number, default: 0 },        // opcional
+    heroImage: { type: String, default: "" },
+    seoTitle: { type: String, default: "" },
+    seoDescription: { type: String, default: "" },
+    isActive: { type: Boolean, default: true },
+    sortPriority: { type: Number, default: 0 },
+
+    menuSection: {
+      type: String,
+      enum: ["artesanias", "cafe", "panela", "otros"],
+      default: "artesanias",
+      index: true,
+    },
   },
   { timestamps: true }
 );
@@ -39,5 +52,6 @@ try {
   );
 } catch (_) {}
 
-module.exports = mongoose.models.Category || mongoose.model("Category", categorySchema);
+module.exports =
+  mongoose.models.Category || mongoose.model("Category", categorySchema);
 module.exports.slugify = slugify;

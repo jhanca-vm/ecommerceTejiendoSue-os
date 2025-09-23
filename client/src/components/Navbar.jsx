@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useState, useRef, useContext } from "react";
+import { useState, useRef, useContext, useEffect, useMemo } from "react";
 
 import { AuthContext } from "../contexts/AuthContext";
 import { CartContext } from "../contexts/CartContext";
@@ -7,6 +7,7 @@ import { SupportContext } from "../contexts/SupportContext";
 import { useToast } from "../contexts/ToastContext";
 import ConfirmModal from "../blocks/ConfirmModalBlock";
 import { useFavorites } from "../contexts/FavoriteContext";
+import api from "../api/apiClient";
 
 /* ==================== Helpers de "ruta activa" ==================== */
 const isMatch = (pathname, matcher) => {
@@ -22,7 +23,14 @@ const isMatch = (pathname, matcher) => {
 /* ================================================================= */
 
 /** ===================== MENÚ CONFIG ===================== */
-const menuConfig = ({ role, hidePublic }) => {
+const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
+  const dynArtesanias = Array.isArray(dynamic.artesanias)
+    ? dynamic.artesanias
+    : [];
+  const dynCafe = Array.isArray(dynamic.cafe) ? dynamic.cafe : [];
+  const dynPanela = Array.isArray(dynamic.panela) ? dynamic.panela : [];
+  const dynOtros = Array.isArray(dynamic.otros) ? dynamic.otros : [];
+
   const publicGroup = hidePublic
     ? []
     : [
@@ -31,83 +39,66 @@ const menuConfig = ({ role, hidePublic }) => {
           label: "Artesanías",
           to: "/artesanias",
           activeMatch: /^\/artesanias(\/|$)/,
-          children: [
-            {
-              label: "Hogar",
-              to: "/categoria/hogar",
-              activeMatch: /^\/categoria\/hogar(\/|$)/,
-            },
-            {
-              label: "Carteras",
-              to: "/categoria/carteras",
-              activeMatch: /^\/categoria\/carteras(\/|$)/,
-            },
-            {
-              label: "Sombreros",
-              to: "/categoria/sombreros",
-              activeMatch: /^\/categoria\/sombreros(\/|$)/,
-            },
-            {
-              label: "Manualidades",
-              to: "/categoria/manualidades",
-              activeMatch: /^\/categoria\/manualidades(\/|$)/,
-            },
-            {
-              label: "Letras",
-              to: "/categoria/letras",
-              activeMatch: /^\/categoria\/letras(\/|$)/,
-            },
-            {
-              label: "Aretes",
-              to: "/categoria/aretes",
-              activeMatch: /^\/categoria\/aretes(\/|$)/,
-            },
-          ],
+          children: dynArtesanias,
         },
         {
           label: "Café",
           to: "/origen/cafe-narino",
           activeMatch: /^\/origen\/cafe-narino(\/|$)/,
-          children: [
-            {
-              label: "Productos",
-              to: "/categoria/cafe",
-              activeMatch: /^\/categoria\/cafe(\/|$)/,
-            },
-            {
-              label: "Origen Nariño",
-              to: "/origen/cafe-narino",
-              activeMatch: /^\/origen\/cafe-narino(\/|$)/,
-            },
-            {
-              label: "Tostiones",
-              to: "/origen/tostion",
-              activeMatch: /^\/origen\/tostion(\/|$)/,
-            },
-          ],
+          children: dynCafe.length
+            ? dynCafe
+            : [
+                {
+                  label: "Productos",
+                  to: "/categoria/cafe",
+                  activeMatch: /^\/categoria\/cafe(\/|$)/,
+                },
+                {
+                  label: "Origen Nariño",
+                  to: "/origen/cafe-narino",
+                  activeMatch: /^\/origen\/cafe-narino(\/|$)/,
+                },
+                {
+                  label: "Tostiones",
+                  to: "/origen/tostion",
+                  activeMatch: /^\/origen\/tostion(\/|$)/,
+                },
+              ],
         },
         {
           label: "Panela",
           to: "/origen/panela-sandona",
           activeMatch: /^\/origen\/panela-sandona(\/|$)/,
-          children: [
-            {
-              label: "Productos",
-              to: "/categoria/panela",
-              activeMatch: /^\/categoria\/panela(\/|$)/,
-            },
-            {
-              label: "Trapiche",
-              to: "/origen/panela-sandona#trapiche",
-              activeMatch: /^\/origen\/panela-sandona(\/|$)/,
-            },
-            {
-              label: "Recetas",
-              to: "/origen/recetas#recetas",
-              activeMatch: /^\/origen\/recetas(\/|$)/,
-            },
-          ],
+          children: dynPanela.length
+            ? dynPanela
+            : [
+                {
+                  label: "Productos",
+                  to: "/categoria/panela",
+                  activeMatch: /^\/categoria\/panela(\/|$)/,
+                },
+                {
+                  label: "Trapiche",
+                  to: "/origen/panela-sandona#trapiche",
+                  activeMatch: /^\/origen\/panela-sandona(\/|$)/,
+                },
+                {
+                  label: "Recetas",
+                  to: "/origen/recetas#recetas",
+                  activeMatch: /^\/origen\/recetas(\/|$)/,
+                },
+              ],
         },
+        ...(dynOtros.length
+          ? [
+              {
+                label: "Otros",
+                to: "/otros",
+                activeMatch: /^\/otros(\/|$)/,
+                children: dynOtros,
+              },
+            ]
+          : []),
       ];
 
   const userOnly =
@@ -118,83 +109,66 @@ const menuConfig = ({ role, hidePublic }) => {
             label: "Artesanías",
             to: "/artesanias",
             activeMatch: /^\/artesanias(\/|$)/,
-            children: [
-              {
-                label: "Hogar",
-                to: "/categoria/hogar",
-                activeMatch: /^\/categoria\/hogar(\/|$)/,
-              },
-              {
-                label: "Carteras",
-                to: "/categoria/carteras",
-                activeMatch: /^\/categoria\/carteras(\/|$)/,
-              },
-              {
-                label: "Sombreros",
-                to: "/categoria/sombreros",
-                activeMatch: /^\/categoria\/sombreros(\/|$)/,
-              },
-              {
-                label: "Manualidades",
-                to: "/categoria/manualidades",
-                activeMatch: /^\/categoria\/manualidades(\/|$)/,
-              },
-              {
-                label: "Letras",
-                to: "/categoria/letras",
-                activeMatch: /^\/categoria\/letras(\/|$)/,
-              },
-              {
-                label: "Aretes",
-                to: "/categoria/aretes",
-                activeMatch: /^\/categoria\/aretes(\/|$)/,
-              },
-            ],
+            children: dynArtesanias,
           },
           {
             label: "Café",
             to: "/origen/cafe-narino",
             activeMatch: /^\/origen\/cafe-narino(\/|$)/,
-            children: [
-              {
-                label: "Productos",
-                to: "/categoria/cafe",
-                activeMatch: /^\/categoria\/cafe(\/|$)/,
-              },
-              {
-                label: "Origen Nariño",
-                to: "/origen/cafe-narino",
-                activeMatch: /^\/origen\/cafe-narino(\/|$)/,
-              },
-              {
-                label: "Tostiones",
-                to: "/origen/tostion",
-                activeMatch: /^\/origen\/tostion(\/|$)/,
-              },
-            ],
+            children: dynCafe.length
+              ? dynCafe
+              : [
+                  {
+                    label: "Productos",
+                    to: "/categoria/cafe",
+                    activeMatch: /^\/categoria\/cafe(\/|$)/,
+                  },
+                  {
+                    label: "Origen Nariño",
+                    to: "/origen/cafe-narino",
+                    activeMatch: /^\/origen\/cafe-narino(\/|$)/,
+                  },
+                  {
+                    label: "Tostiones",
+                    to: "/origen/tostion",
+                    activeMatch: /^\/origen\/tostion(\/|$)/,
+                  },
+                ],
           },
           {
             label: "Panela",
             to: "/origen/panela-sandona",
             activeMatch: /^\/origen\/panela-sandona(\/|$)/,
-            children: [
-              {
-                label: "Productos",
-                to: "/categoria/panela",
-                activeMatch: /^\/categoria\/panela(\/|$)/,
-              },
-              {
-                label: "Trapiche",
-                to: "/origen/panela-sandona#trapiche",
-                activeMatch: /^\/origen\/panela-sandona(\/|$)/,
-              },
-              {
-                label: "Recetas",
-                to: "/origen/recetas#recetas",
-                activeMatch: /^\/origen\/recetas(\/|$)/,
-              },
-            ],
+            children: dynPanela.length
+              ? dynPanela
+              : [
+                  {
+                    label: "Productos",
+                    to: "/categoria/panela",
+                    activeMatch: /^\/categoria\/panela(\/|$)/,
+                  },
+                  {
+                    label: "Trapiche",
+                    to: "/origen/panela-sandona#trapiche",
+                    activeMatch: /^\/origen\/panela-sandona(\/|$)/,
+                  },
+                  {
+                    label: "Recetas",
+                    to: "/origen/recetas#recetas",
+                    activeMatch: /^\/origen\/recetas(\/|$)/,
+                  },
+                ],
           },
+          ...(dynOtros.length
+            ? [
+                {
+                  label: "Otros",
+                  to: "/otros",
+                  activeMatch: /^\/otros(\/|$)/,
+                  children: dynOtros,
+                },
+              ]
+            : []),
           {
             label: "Mis pedidos",
             to: "/my-orders",
@@ -277,27 +251,79 @@ const Navbar = () => {
   const location = useLocation();
 
   const [showConfirm, setShowConfirm] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null);
+  const [openDropdown, setOpenDropdown] = useState(null); // índice abierto o null
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileOpenIndex, setMobileOpenIndex] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const navRef = useRef(null);
 
   const isAdmin = user?.role === "admin";
-
   const isAdminRoute = location.pathname.startsWith("/admin");
   const hidePublic = isAdminRoute || user?.role === "user";
   const isCustomer = user?.role === "user";
-
   const { favorites } = useFavorites();
+
+  /* ===== Carga dinámica de categorías ===== */
+  const [menuCats, setMenuCats] = useState([]);
+  const [catLoading, setCatLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setCatLoading(true);
+        let resp;
+        try {
+          resp = await api.get("/categories");
+        } catch {
+          resp = await api.get("/api/categories");
+        }
+        if (!alive) return;
+        const data = resp?.data ?? [];
+        setMenuCats(Array.isArray(data) ? data.filter((c) => c?.isActive) : []);
+      } catch (e) {
+        console.error("Error cargando categorías:", e);
+      } finally {
+        if (alive) setCatLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /* Agrupar por sección */
+  const sectioned = useMemo(() => {
+    const groups = { artesanias: [], cafe: [], panela: [], otros: [] };
+    for (const c of menuCats) {
+      const sec = (c?.menuSection || "artesanias").toLowerCase();
+      const bucket = groups[sec] || groups.artesanias;
+      if (c?.slug && c?.name) {
+        bucket.push({
+          label: c.name,
+          to: `/categoria/${c.slug}`,
+          activeMatch: new RegExp(`^\\/categoria\\/${c.slug}(\\/|$)`, "i"),
+        });
+      }
+    }
+    for (const k of Object.keys(groups)) {
+      groups[k].sort((a, b) => a.label.localeCompare(b.label, "es"));
+    }
+    return groups;
+  }, [menuCats]);
+
+  const items = menuConfig({
+    role: user?.role,
+    hidePublic,
+    dynamic: sectioned,
+    loading: catLoading,
+  });
 
   const capitalizeInitials = (name) =>
     (name || "")
       .split(" ")
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
       .join(" ");
-
-  const items = menuConfig({ role: user?.role, hidePublic });
 
   const goSupportPath = user
     ? user.role === "admin"
@@ -317,7 +343,32 @@ const Navbar = () => {
 
   const handleSearchToggle = () => setShowSearch((s) => !s);
   const handleWishlist = () => navigate("/favorites");
-  
+
+  /* Cerrar dropdown al click fuera del nav — mousedown, sin captura */
+  useEffect(() => {
+    const handleMouseDown = (e) => {
+      if (navRef.current && !navRef.current.contains(e.target)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, []);
+
+  /* Cerrar con Esc */
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setOpenDropdown(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  /* Cerrar dropdown al cambiar de ruta */
+  useEffect(() => {
+    setOpenDropdown(null);
+  }, [location.pathname]);
+
   return (
     <>
       <nav className="navbar-container" ref={navRef}>
@@ -357,10 +408,6 @@ const Navbar = () => {
                     className={`menu-item ${
                       openDropdown === idx ? "open" : ""
                     }`}
-                    onMouseEnter={() => {
-                      if (window.innerWidth >= 1024 && hasChildren)
-                        setOpenDropdown(idx);
-                    }}
                   >
                     <button
                       className={`menu-top ${parentActive ? "active" : ""}`}
@@ -372,6 +419,7 @@ const Navbar = () => {
                           navigate(item.to);
                           return;
                         }
+                        // toggle click-only
                         setOpenDropdown((cur) => (cur === idx ? null : idx));
                       }}
                     >
@@ -389,6 +437,14 @@ const Navbar = () => {
                         role="menu"
                         aria-label={`Submenú de ${item.label}`}
                         aria-hidden={openDropdown !== idx}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onBlur={(e) => {
+                          // Cierra si el foco se va fuera del dropdown
+                          const next = e.relatedTarget;
+                          if (!e.currentTarget.contains(next)) {
+                            setOpenDropdown(null);
+                          }
+                        }}
                       >
                         {item.children.map((child, cIdx) => {
                           const childActive = isMatch(
@@ -404,8 +460,34 @@ const Navbar = () => {
                                 childActive ? "active" : ""
                               }`}
                               to={child.to}
-                              onClick={() => setOpenDropdown(null)}
                               role="menuitem"
+                              // Navega y cierra ANTES de que el dropdown se desmonte
+                              onMouseDown={(e) => {
+                                e.preventDefault(); // evita que luego el click navegue "tarde"
+                                setOpenDropdown(null); // cierra dropdown
+                                if (
+                                  document.activeElement instanceof HTMLElement
+                                ) {
+                                  document.activeElement.blur(); // evita reabrir por foco residual
+                                }
+                                navigate(child.to); // navega YA
+                              }}
+                              // Evita doble navegación por el click posterior
+                              onClick={(e) => e.preventDefault()}
+                              // Accesibilidad: Enter/Espacio también navegan y cierran
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setOpenDropdown(null);
+                                  if (
+                                    document.activeElement instanceof
+                                    HTMLElement
+                                  ) {
+                                    document.activeElement.blur();
+                                  }
+                                  navigate(child.to);
+                                }
+                              }}
                             >
                               {child.label}
                             </Link>
@@ -435,83 +517,9 @@ const Navbar = () => {
                     <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z" />
                   </svg>
                 </Link>
-
-                {/* Dropdown simple se muestra aun lado como para mostrar mensajes rapidos */}
-                {/* <div
-                  className={`dropdown alerts ${alertsOpen ? "open" : ""}`}
-                  role="menu"
-                  aria-hidden={!alertsOpen}
-                >
-                  <div className="alerts-head">
-                    <strong>Alertas</strong>
-                    <div className="spacer" />
-                    {unreadAlerts > 0 && (
-                      <button
-                        className="link"
-                        onClick={markAllSeen}
-                        type="button"
-                      >
-                        Marcar todas como vistas
-                      </button>
-                    )}
-                  </div>
-
-                  {alerts.length === 0 ? (
-                    <div className="alerts-empty">Sin alertas nuevas</div>
-                  ) : (
-                    <ul className="alerts-list">
-                      {alerts.map((al) => (
-                        <li key={al._id} className={`al al--${al.type}`}>
-                          <div className="al-title">
-                            {al.type === "OUT_OF_STOCK"
-                              ? "Sin stock"
-                              : "Stock bajo"}
-                          </div>
-                          <div className="al-body">
-                            <div className="al-msg">{al.message}</div>
-                            {al.product?._id && (
-                              <button
-                                className="link"
-                                onClick={() => {
-                                  markOneSeen(al._id);
-                                  navigate(
-                                    `/admin/products/edit/${al.product._id}`
-                                  );
-                                  setAlertsOpen(false);
-                                }}
-                                type="button"
-                              >
-                                Ir al producto
-                              </button>
-                            )}
-                          </div>
-                          <button
-                            className="al-close"
-                            onClick={() => markOneSeen(al._id)}
-                            type="button"
-                          >
-                            ✕
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  <div className="alerts-foot">
-                    <button
-                      className="link"
-                      onClick={() => {
-                        setAlertsOpen(false);
-                        navigate("/admin/alerts");
-                      }}
-                      type="button"
-                    >
-                      Ver todas
-                    </button>
-                  </div>
-                </div>*/}
               </div>
             )}
+
             {/* Iconos (solo desktop) — SOLO para clientes */}
             {isCustomer && (
               <div className="icon-bar">
@@ -520,6 +528,7 @@ const Navbar = () => {
                   onClick={(e) => {
                     e.preventDefault();
                     handleSearchToggle();
+                    setOpenDropdown(null);
                   }}
                   className={`icon-btn ${showSearch ? "active" : ""}`}
                   aria-label="Buscar"
@@ -529,11 +538,13 @@ const Navbar = () => {
                     <path d="M15.5 14h-.79l-.28-.27A6.5 6.5 0 1 0 14 15.5l.27.28v.79L20 21l1-1-5.5-5.5zM5 10.5A5.5 5.5 0 1 1 10.5 16 5.51 5.51 0 0 1 5 10.5z" />
                   </svg>
                 </Link>
+
                 <Link
                   to="#"
                   onClick={(e) => {
                     e.preventDefault();
                     handleWishlist();
+                    setOpenDropdown(null);
                   }}
                   className="icon-btn cart-btn"
                   aria-label="Favoritos"
@@ -552,6 +563,7 @@ const Navbar = () => {
                   className="icon-btn cart-btn"
                   aria-label="Carrito"
                   title="Carrito"
+                  onClick={() => setOpenDropdown(null)}
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M7 4h-2l-1 2v2h2l3.6 7.59L8.24 18H19v-2H9.42l1.1-2h6.45a2 2 0 0 0 1.79-1.11L21 7H6.21l-.94-2H3" />
@@ -563,8 +575,6 @@ const Navbar = () => {
               </div>
             )}
 
-            {/* Perfil */}
-
             {/* Soporte + usuario */}
             {user && (
               <>
@@ -575,16 +585,19 @@ const Navbar = () => {
                   }`}
                   aria-label="Perfil"
                   title="Perfil"
+                  onClick={() => setOpenDropdown(null)}
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.418 0-8 2.239-8 5v1h16v-1c0-2.761-3.582-5-8-5z" />
                   </svg>
                 </Link>
+
                 <Link
                   to={goSupportPath}
                   className={`nav-link support-link ${
                     isSupportActive ? "active" : ""
                   }`}
+                  onClick={() => setOpenDropdown(null)}
                 >
                   Soporte
                   {unreadCount > 0 && (
@@ -603,7 +616,10 @@ const Navbar = () => {
                   Hola, {capitalizeInitials(user.name)}
                 </span>
                 <button
-                  onClick={() => setShowConfirm(true)}
+                  onClick={() => {
+                    setShowConfirm(true);
+                    setOpenDropdown(null);
+                  }}
                   className="logout-button"
                   type="button"
                 >
@@ -619,6 +635,7 @@ const Navbar = () => {
                       ? "nav-link active"
                       : "nav-link"
                   }
+                  onClick={() => setOpenDropdown(null)}
                 >
                   Login
                 </Link>
@@ -629,6 +646,7 @@ const Navbar = () => {
                       ? "nav-link active"
                       : "nav-link"
                   }
+                  onClick={() => setOpenDropdown(null)}
                 >
                   Registro
                 </Link>
@@ -642,6 +660,7 @@ const Navbar = () => {
                 setDrawerOpen((s) => !s);
                 setMobileOpenIndex(null);
                 setShowSearch(false);
+                setOpenDropdown(null);
               }}
               aria-label="Abrir menú"
               aria-expanded={drawerOpen}
@@ -668,6 +687,7 @@ const Navbar = () => {
                 const q = e.currentTarget.elements.q.value.trim();
                 if (!q) return;
                 setShowSearch(false);
+                setOpenDropdown(null);
                 navigate(`/tienda?q=${encodeURIComponent(q)}`);
               }}
             >
@@ -704,7 +724,6 @@ const Navbar = () => {
             </button>
           </div>
 
-          {/* Iconos dentro del drawer — SOLO cliente */}
           {isCustomer && (
             <div className="drawer-icons">
               <button
@@ -741,7 +760,6 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* Buscador compacto — solo cliente */}
           {isCustomer && (
             <div className="drawer-search">
               <form
@@ -877,7 +895,6 @@ const Navbar = () => {
                   )}
                 </Link>
 
-                {/* Botón Salir en menú hamburguesa */}
                 <button
                   className="drawer-logout"
                   onClick={() => {

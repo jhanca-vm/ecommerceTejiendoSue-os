@@ -10,13 +10,30 @@
   --maxw: 1160px;
 }
 
+/* ====== FIJAR HEADER ARRIBA Y COMPENSAR CONTENIDO ====== */
+.site-header {
+  position: fixed; /* fijo arriba */
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000; /* encima del contenido */
+  /* si quieres blur:
+  backdrop-filter: saturate(140%) blur(6px);
+  */
+}
+.site-main {
+  padding-top: 72px; /* ajusta a la altura real del header */
+}
+
 /* ====== SHELL ====== */
 .navbar-container {
-  position: sticky;
+  /* sticky ya no es necesario, pero no molesta;
+     puedes quitarlo si prefieres */
+  position: relative;
   top: 0;
-  z-index: 50;
   background: var(--crema);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+  z-index: 50;
 }
 .navbar-wrapper {
   /* max-width: var(--maxw);*/
@@ -102,13 +119,23 @@
   box-shadow: var(--shadow);
   border-radius: 12px;
   padding: 0.4rem;
-  display: none; /* <- clave: oculto hasta que el li tenga .open */
+  display: none; /* <- oculto hasta que el li tenga .open o focus-within */
   flex-direction: column;
   gap: 0.25rem;
+
+  /* listas largas en pantallas pequeñas */
+  max-height: 60vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .menu-item.open > .dropdown {
   display: flex;
 }
+/* Accesibilidad: abrir también al navegar con teclado (focus) 
+.menu-item:focus-within > .dropdown {
+  display: flex;
+}*/
 
 /* Links dropdown */
 .dropdown-link {
@@ -341,6 +368,7 @@
   z-index: 60;
   display: flex;
   flex-direction: column;
+  -webkit-overflow-scrolling: touch; /* suaviza scroll en iOS */
 }
 .drawer.open {
   transform: translateX(0);

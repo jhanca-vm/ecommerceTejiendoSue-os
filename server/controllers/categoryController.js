@@ -1,12 +1,21 @@
 const Category = require("../models/Category");
 const { slugify } = require("../models/Category");
 
+// Helpers locales
+const ALLOWED_SECTIONS = new Set(["artesanias", "cafe", "panela", "otros"]);
+const normSection = (s) => {
+  const v = String(s || "")
+    .toLowerCase()
+    .trim();
+  return ALLOWED_SECTIONS.has(v) ? v : "artesanias"; // default conservador
+};
+
 // Crear categoría
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description = "", slug } = req.body;
-
+    const { name, description = "", slug, menuSection } = req.body;
     const finalSlug = slug ? slugify(slug) : slugify(name);
+
     const existsByName = await Category.findOne({ name });
     const existsBySlug = await Category.findOne({ slug: finalSlug });
     if (existsByName || existsBySlug) {
@@ -15,7 +24,13 @@ exports.createCategory = async (req, res) => {
         .json({ error: "La categoría ya existe (nombre o slug duplicado)." });
     }
 
-    const category = new Category({ name, description, slug: finalSlug });
+    const category = new Category({
+      name,
+      description,
+      slug: finalSlug,
+      menuSection: normSection(menuSection),
+    });
+
     await category.save();
     res.status(201).json(category);
   } catch (err) {
@@ -70,6 +85,11 @@ exports.updateCategory = async (req, res) => {
     const patch = { ...req.body };
     if (patch.slug) patch.slug = slugify(patch.slug);
     if (patch.name && !patch.slug) patch.slug = slugify(patch.name);
+
+    // === NUEVO ===
+    if (patch.menuSection !== undefined) {
+      patch.menuSection = normSection(patch.menuSection);
+    }
 
     const updated = await Category.findByIdAndUpdate(req.params.id, patch, {
       new: true,

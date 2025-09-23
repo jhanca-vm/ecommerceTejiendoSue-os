@@ -23,20 +23,20 @@ function normalizePhone(phoneRaw) {
 
 /**
  * Construye el texto de WhatsApp para un pedido.
- * @param {Object} order - Pedido tal como lo devuelve tu backend (contiene items[] con product, size, color…)
- * @param {Object} customer - { name, email } (opcional, si lo quieres imprimir arriba)
- * @param {Object} shippingInfo - { fullName, phone, address, city, notes } (opcional)
- * @param {Object} opts - { humanCode, includeSKU, includeVariant, includeImages }
+ * @param {Object} order 
+ * @param {Object} customer 
+ * @param {Object} shippingInfo
+ * @param {Object} opts 
  */
 export function buildWhatsAppText(order, customer, shippingInfo, opts = {}) {
   const {
     humanCode = null,
-    includeSKU = true,
+    //includeSKU = true,
     includeVariant = true,
     includeImages = false,
   } = opts;
 
-  const baseUrl = getBaseUrl(); // OJO: es función
+  const baseUrl = getBaseUrl();
   const header = [];
   header.push("Nuevo pedido");
   header.push(`ID: ${humanCode || order?._id || "—"}`);
@@ -113,7 +113,7 @@ export function buildWhatsAppText(order, customer, shippingInfo, opts = {}) {
 
 /**
  * Crea la URL wa.me lista para abrir en nueva pestaña.
- * @param {string} phoneRaw - Número destino (por ejemplo el ADMIN_WHATSAPP)
+ * @param {string} phoneRaw 
  * @param {Object} order
  * @param {Object} customer
  * @param {Object} shippingInfo

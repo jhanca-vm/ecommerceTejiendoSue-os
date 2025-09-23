@@ -292,6 +292,13 @@ const Navbar = () => {
     };
   }, []);
 
+  /* Cerrar dropdown al hacer scroll */
+  useEffect(() => {
+    const onScroll = () => setOpenDropdown(null);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   /* Agrupar por sección */
   const sectioned = useMemo(() => {
     const groups = { artesanias: [], cafe: [], panela: [], otros: [] };
@@ -402,6 +409,8 @@ const Navbar = () => {
                       isMatch(location.pathname, c.activeMatch || c.to)
                     ));
 
+                const dropdownId = `submenu-${idx}`;
+
                 return (
                   <li
                     key={`${item.to || item.label || "item"}-${idx}`}
@@ -411,8 +420,11 @@ const Navbar = () => {
                   >
                     <button
                       className={`menu-top ${parentActive ? "active" : ""}`}
-                      aria-haspopup={hasChildren ? "true" : "false"}
-                      aria-expanded={openDropdown === idx}
+                      aria-haspopup={hasChildren ? "menu" : undefined}
+                      aria-expanded={
+                        hasChildren ? openDropdown === idx : undefined
+                      }
+                      aria-controls={hasChildren ? dropdownId : undefined}
                       onClick={(e) => {
                         e.preventDefault();
                         if (!hasChildren) {
@@ -421,6 +433,26 @@ const Navbar = () => {
                         }
                         // toggle click-only
                         setOpenDropdown((cur) => (cur === idx ? null : idx));
+                      }}
+                      onKeyDown={(e) => {
+                        if (!hasChildren) return;
+                        if (
+                          e.key === "Enter" ||
+                          e.key === " " ||
+                          e.key === "ArrowDown"
+                        ) {
+                          e.preventDefault();
+                          setOpenDropdown(idx);
+                          // foco al primer link del submenú
+                          setTimeout(() => {
+                            const first = document.querySelector(
+                              `#${dropdownId} .dropdown-link`
+                            );
+                            first?.focus();
+                          }, 0);
+                        } else if (e.key === "Escape") {
+                          setOpenDropdown(null);
+                        }
                       }}
                     >
                       {item.label}
@@ -433,13 +465,13 @@ const Navbar = () => {
 
                     {hasChildren && (
                       <div
+                        id={dropdownId}
                         className="dropdown"
                         role="menu"
                         aria-label={`Submenú de ${item.label}`}
                         aria-hidden={openDropdown !== idx}
                         onMouseDown={(e) => e.stopPropagation()}
                         onBlur={(e) => {
-                          // Cierra si el foco se va fuera del dropdown
                           const next = e.relatedTarget;
                           if (!e.currentTarget.contains(next)) {
                             setOpenDropdown(null);
@@ -461,20 +493,19 @@ const Navbar = () => {
                               }`}
                               to={child.to}
                               role="menuitem"
-                              // Navega y cierra ANTES de que el dropdown se desmonte
+                              // Navegar y cerrar ANTES del desmontaje
                               onMouseDown={(e) => {
-                                e.preventDefault(); // evita que luego el click navegue "tarde"
-                                setOpenDropdown(null); // cierra dropdown
+                                e.preventDefault();
+                                setOpenDropdown(null);
                                 if (
                                   document.activeElement instanceof HTMLElement
                                 ) {
-                                  document.activeElement.blur(); // evita reabrir por foco residual
+                                  document.activeElement.blur();
                                 }
-                                navigate(child.to); // navega YA
+                                navigate(child.to);
                               }}
-                              // Evita doble navegación por el click posterior
+                              // Evita doble navegación por click posterior
                               onClick={(e) => e.preventDefault()}
-                              // Accesibilidad: Enter/Espacio también navegan y cierran
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {
                                   e.preventDefault();

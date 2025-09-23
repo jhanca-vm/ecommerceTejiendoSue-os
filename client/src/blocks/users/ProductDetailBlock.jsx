@@ -8,6 +8,7 @@ import { useToast } from "../../contexts/ToastContext";
 import ProductPriceBlock from "../ProductPrice";
 import FavoriteButton from "./FavoriteButton";
 import CheckoutModal from "../users/CheckoutModal";
+import SuccessOverlay from "././../SuccessOverlay";
 
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
 
@@ -291,12 +292,21 @@ const ProductDetailBlock = ({
     };
     const cartItem = { ...product, size: sizeObj, color: colorObj };
     onAddToCart(cartItem, quantity);
-    showToast("Producto agregado al carrito", "success");
+    showToast({
+      message: "Producto agregado al carrito",
+      type: "success",
+      duration: 5000,
+      actions: [
+        { label: "Ir al carrito", onClick: () => navigate("/cart") },
+        { label: "Seguir comprando", onClick: () => {} },
+      ],
+    });
   };
 
   /* ----- Comprar ahora ----- */
   const [openBuyNow, setOpenBuyNow] = useState(false);
   const [loadingBuyNow, setLoadingBuyNow] = useState(false);
+  const [success, setSuccess] = useState({ open: false, humanCode: "" });
 
   const fmtCOP = (n) =>
     Number(n || 0).toLocaleString("es-CO", {
@@ -375,7 +385,7 @@ const ProductDetailBlock = ({
       window.open(waUrl, "_blank", "noopener,noreferrer");
 
       showToast(`Pedido creado: ${humanCode}`, "success");
-      navigate("/my-orders");
+      setSuccess({ open: true, humanCode });
     } catch (err) {
       showToast(
         "Error al realizar el pedido: " +
@@ -985,6 +995,19 @@ const ProductDetailBlock = ({
         open={openBuyNow}
         onClose={() => setOpenBuyNow(false)}
         onConfirm={confirmBuyNow}
+      />
+      <SuccessOverlay
+        open={success.open}
+        humanCode={success.humanCode}
+        onPrimary={() => {
+          setSuccess({ open: false, humanCode: "" });
+          navigate("/artesanias");
+        }}
+        onSecondary={() => {
+          setSuccess({ open: false, humanCode: "" });
+          navigate("/my-orders");
+        }}
+        onClose={() => setSuccess({ open: false, humanCode: "" })}
       />
     </div>
   );

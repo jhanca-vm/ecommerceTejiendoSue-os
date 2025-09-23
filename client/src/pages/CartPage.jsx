@@ -9,6 +9,7 @@ import CartItem from "../blocks/users/CartItem";
 import CheckoutModal from "../blocks/users/CheckoutModal";
 import { useToast } from "../contexts/ToastContext";
 import { buildWhatsAppUrl } from "../utils/whatsapp";
+import SuccessOverlay from "../blocks/SuccessOverlay";
 
 const ADMIN_WHATSAPP = "573147788069";
 
@@ -109,6 +110,7 @@ const CartPage = () => {
 
   const [openModal, setOpenModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState({ open: false, humanCode: "" });
 
   // Lista de productIds presentes
   const productIds = useMemo(
@@ -221,7 +223,7 @@ const CartPage = () => {
 
       showToast(`Pedido creado: ${humanCode}`, "success");
       clearCart();
-      navigate("/my-orders");
+      setSuccess({ open: true, humanCode });
     } catch (err) {
       showToast(
         "Error al realizar el pedido: " +
@@ -340,6 +342,19 @@ const CartPage = () => {
         open={openModal}
         onClose={() => setOpenModal(false)}
         onConfirm={confirmCheckout}
+      />
+      <SuccessOverlay
+        open={success.open}
+        humanCode={success.humanCode}
+        onPrimary={() => {
+          setSuccess({ open: false, humanCode: "" });
+          navigate("/artesanias");
+        }}
+        onSecondary={() => {
+          setSuccess({ open: false, humanCode: "" });
+          navigate("/my-orders");
+        }}
+        onClose={() => setSuccess({ open: false, humanCode: "" })}
       />
     </div>
   );

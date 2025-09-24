@@ -1001,7 +1001,7 @@ const ProductDetailBlock = ({
         humanCode={success.humanCode}
         onPrimary={() => {
           setSuccess({ open: false, humanCode: "" });
-          navigate("/artesanias");
+          navigate("/");
         }}
         onSecondary={() => {
           setSuccess({ open: false, humanCode: "" });

@@ -106,12 +106,11 @@
   }
 }
 
-/*Estilos del de iraca*/
-/* === Success Overlay === */
+/* === Success Overlay (tus estilos base conservados) === */
 .so {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.5);
+  background: rgba(0, 0, 0, 0.5);
   display: grid;
   place-items: center;
   z-index: 10000;
@@ -122,59 +121,129 @@
   border-radius: 16px;
   background: #fff;
   border: 1px solid var(--line, #eee1cd);
-  box-shadow: var(--shadow, 0 8px 28px rgba(0,0,0,.12));
+  box-shadow: var(--shadow, 0 8px 28px rgba(0, 0, 0, 0.12));
   padding: 1.2rem 1rem 1.4rem;
   position: relative;
   text-align: center;
-  animation: so-in .2s ease-out;
+  animation: so-in 0.2s ease-out;
 }
-@keyframes so-in { from { transform: translateY(8px); opacity: 0 } }
+@keyframes so-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+.so__anim {
+  width: 220px;
+  height: 140px;
+  display: grid;
+  place-items: center;
+}
+.so__anim svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 
 .so__close {
   position: absolute;
-  top: 10px; right: 10px;
-  width: 36px; height: 36px;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
   border: 1px solid #eadcc5;
   background: #fff;
   color: #6b6b6b;
   cursor: pointer;
 }
-.so__anim { margin: .2rem auto 0.6rem; }
-.so__svg { display: block; margin: 0 auto; }
-.st {
-  fill: none;
-  stroke: var(--panela, #7a3e15);
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 320;
-  stroke-dashoffset: 320;
+.so__anim {
+  margin: 0.2rem auto 0.6rem;
+  display: grid;
+  place-items: center;
 }
-.so__palm .st { animation: draw 1.1s ease-out forwards; }
-.so__hat { opacity: 0; transform: scale(.96); }
-.so__hat .st { animation: draw .9s ease-out forwards; animation-delay: 1.1s; }
-.so__hat { animation: hat-in .36s ease-out 1.1s forwards; }
-
-@keyframes draw { to { stroke-dashoffset: 0; } }
-@keyframes hat-in {
-  to { opacity: 1; transform: scale(1); }
+.so__svg {
+  display: block;
+  margin: 0 auto;
 }
 
 .so__title {
-  margin: .2rem 0 .2rem;
+  margin: 0.2rem 0 0.2rem;
   font-weight: 900;
   color: #2b2b2b;
 }
-.so__subtitle { color: #444; margin: 0 0 .6rem; }
+.so__subtitle {
+  color: #444;
+  margin: 0 0 0.6rem;
+}
 
 .so__actions {
   display: inline-flex;
-  gap: .5rem;
+  gap: 0.5rem;
 }
 
-/* reduced motion */
+/* === Animación de la palma y sombrero (realista pero ligera) === */
+.bc-palm {
+  transform-origin: 140px 130px;
+  animation: sway 2.6s ease-in-out 0.1s both;
+}
+.bc-palm path {
+  stroke-dasharray: 280;
+  stroke-dashoffset: 280;
+  animation: draw 1s ease-out forwards;
+}
+.bc-palm path:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.bc-palm path:nth-child(3) {
+  animation-delay: 0.12s;
+}
+.bc-palm path:nth-child(4) {
+  animation-delay: 0.18s;
+}
+.bc-palm path:nth-child(5) {
+  animation-delay: 0.24s;
+}
+.bc-hat {
+  animation: hatIn 0.36s ease-out 1.1s forwards;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes sway {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(2.5deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+@keyframes hatIn {
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* === Reduced motion: desactiva trazados/balanceo si el usuario lo pide === */
 @media (prefers-reduced-motion: reduce) {
-  .st { stroke-dasharray: none; stroke-dashoffset: 0; }
-  .so__hat, .so__card { animation: none; transform: none; opacity: 1; }
+  .bc-palm path {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .bc-palm,
+  .bc-hat,
+  .so__card {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
 }

@@ -1,20 +1,13 @@
+// blocks/ToastBlock.jsx
 import { useEffect, useRef } from "react";
 
-/**
- * Toast accesible con acciones.
- * Props:
- * - message: string
- * - type: "success" | "info" | "warning" | "error"
- * - actions: [{ label: string, onClick?: () => void }]
- * - ariaLive: "polite" | "assertive"
- * - onClose: () => void
- */
 export default function ToastBlock({
   message,
   type = "success",
   actions = [],
-  ariaLive = "polite",
   onClose,
+  onPause,
+  onResume,
 }) {
   const ref = useRef(null);
 
@@ -33,12 +26,17 @@ export default function ToastBlock({
   }, [onClose]);
 
   return (
-    <div className="toast-wrap" aria-live={ariaLive}>
+    <div className="toast-wrap">
+      {/* sin aria-live aquí */}
       <div
         ref={ref}
         role="status"
-        className={`toast toast--${type}`}
         aria-atomic="true"
+        className={`toast toast--${type}`}
+        onMouseEnter={() => onPause?.()}
+        onFocusCapture={() => onPause?.()}
+        onMouseLeave={() => onResume?.()}
+        onBlurCapture={() => onResume?.()}
       >
         <div className="toast__content">
           <span className="toast__msg">{message}</span>
@@ -73,4 +71,3 @@ export default function ToastBlock({
     </div>
   );
 }
-

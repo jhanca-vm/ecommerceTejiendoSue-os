@@ -1,4 +1,3 @@
-// contexts/ToastContext.jsx
 import { createContext, useContext, useState, useRef, useEffect } from "react";
 import Toast from "../blocks/ToastBlock";
 

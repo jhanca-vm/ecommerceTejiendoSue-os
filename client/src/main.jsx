@@ -10,6 +10,7 @@ import { ToastProvider } from "./contexts/ToastContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { SupportProvider } from "./contexts/SupportContext";
 import { FavoriteProvider } from "./contexts/FavoriteContext";
+import { AdminAlertsProvider } from "./contexts/AdminAlertsContext";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
@@ -18,7 +19,9 @@ createRoot(document.getElementById("root")).render(
         <CartProvider>
           <SupportProvider>
             <FavoriteProvider>
-              <App />
+              <AdminAlertsProvider>
+                <App />
+              </AdminAlertsProvider>
             </FavoriteProvider>
           </SupportProvider>
         </CartProvider>

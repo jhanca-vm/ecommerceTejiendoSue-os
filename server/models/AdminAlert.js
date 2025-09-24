@@ -5,17 +5,21 @@ const adminAlertSchema = new mongoose.Schema(
     type: {
       type: String,
       enum: [
+        // Inventario
         "OUT_OF_STOCK",
         "LOW_STOCK",
         "OUT_OF_STOCK_VARIANT",
         "LOW_STOCK_VARIANT",
-        // === NUEVO ===
+        // Pedidos
+        "ORDER_CREATED",
+        "ORDER_STATUS_CHANGED",
         "ORDER_STALE_STATUS",
       ],
       required: true,
+      index: true,
     },
 
-    // Para alertas de inventario (ya existentes)
+    // Inventario
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
@@ -26,7 +30,7 @@ const adminAlertSchema = new mongoose.Schema(
       color: { type: mongoose.Schema.Types.ObjectId, ref: "Color" },
     },
 
-    // === NUEVO: para alertas por pedidos estancados ===
+    // Pedidos
     order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", index: true },
     orderStatus: {
       type: String,
@@ -49,13 +53,13 @@ const adminAlertSchema = new mongoose.Schema(
 );
 
 adminAlertSchema.index({ seen: 1, createdAt: -1 });
+adminAlertSchema.index({ type: 1, createdAt: -1 });
 adminAlertSchema.index({
   product: 1,
   "variant.size": 1,
   "variant.color": 1,
   createdAt: -1,
 });
-// para deduplicar razonablemente por pedido/estado
 adminAlertSchema.index({ order: 1, orderStatus: 1, createdAt: -1 });
 
 module.exports =

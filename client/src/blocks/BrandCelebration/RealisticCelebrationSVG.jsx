@@ -1,4 +1,3 @@
-// blocks/BrandCelebration/RealisticCelebrationSVG.jsx
 export default function RealisticCelebrationSVG({ width = 260, height = 170 }) {
   /* ====== PALMA (abanico) ====== */
   const CX = 140,

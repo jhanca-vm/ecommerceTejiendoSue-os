@@ -7,6 +7,8 @@ import { SupportContext } from "../contexts/SupportContext";
 import { useToast } from "../contexts/ToastContext";
 import ConfirmModal from "../blocks/ConfirmModalBlock";
 import { useFavorites } from "../contexts/FavoriteContext";
+import { useAdminAlerts } from "../contexts/AdminAlertsContext";
+
 import api from "../api/apiClient";
 
 /* ==================== Helpers de "ruta activa" ==================== */
@@ -267,6 +269,8 @@ const Navbar = () => {
   const [menuCats, setMenuCats] = useState([]);
   const [catLoading, setCatLoading] = useState(true);
 
+  const { unread, syncUnread } = useAdminAlerts();
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -341,6 +345,8 @@ const Navbar = () => {
   const isSupportActive =
     isMatch(location.pathname, /^\/support(\/|$)/) ||
     isMatch(location.pathname, /^\/admin\/inbox(\/|$)/);
+
+  const isAlertsActive = isMatch(location.pathname, /^\/admin\/alerts(\/|$)/);
 
   const handleLogoutConfirm = async () => {
     await logout();
@@ -538,15 +544,18 @@ const Navbar = () => {
               <div className="icon-bar">
                 <Link
                   to="/admin/alerts"
-                  className={`icon-btn support-link ${
-                    isSupportActive ? "active" : ""
-                  }`}
-                  aria-label="Perfil"
-                  title="Perfil"
+                  className={`icon-btn ${isAlertsActive ? "active" : ""}`}
+                  aria-label="Alertas"
+                  title="Alertas"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z" />
                   </svg>
+                  {unread > 0 && (
+                    <span className="notification-badge">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
                 </Link>
               </div>
             )}

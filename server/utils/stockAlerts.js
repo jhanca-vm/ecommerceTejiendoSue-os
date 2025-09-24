@@ -5,15 +5,22 @@ const Order = require("../models/Order");
 const LOW_STOCK_THRESHOLD = Number(process.env.LOW_STOCK_THRESHOLD || 3);
 const RENOTIFY_HOURS = Number(process.env.ORDER_STALE_RENOTIFY_HOURS || 24);
 
-// Helpers tiempo
+// SLA por estado (horas) para estancados
+const SLA_HOURS = {
+  pendiente: Number(process.env.SLA_H_PENDIENTE || 24),
+  facturado: Number(process.env.SLA_H_FACTURADO || 48),
+  enviado: Number(process.env.SLA_H_ENVIADO || 72),
+};
+
 const startOfToday = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
 };
 const since24h = () => new Date(Date.now() - 24 * 60 * 60 * 1000);
+const hoursToMs = (h) => Number(h) * 60 * 60 * 1000;
 
-/** Debug mínimo para validar que createdAt es Date en el modelo */
+/** ===== Helpers ===== */
 function debugSchemaOnce() {
   if (debugSchemaOnce._done) return;
   try {
@@ -23,9 +30,29 @@ function debugSchemaOnce() {
   debugSchemaOnce._done = true;
 }
 
-//helper para el estado de los pedidos estancados
-function hoursToMs(h) {
-  return Number(h) * 60 * 60 * 1000;
+async function hasRecentVariantAlert(
+  productId,
+  sizeId,
+  colorId,
+  type,
+  minDate
+) {
+  const last = await AdminAlert.findOne({
+    product: productId,
+    type,
+    "variant.size": sizeId,
+    "variant.color": colorId,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (!last) return false;
+  try {
+    const lastAt = new Date(last.createdAt).getTime();
+    return lastAt >= minDate.getTime();
+  } catch {
+    return false;
+  }
 }
 
 async function lastAlertWithin(orderId, status, withinMs) {
@@ -44,44 +71,38 @@ async function lastAlertWithin(orderId, status, withinMs) {
   }
 }
 
-/**
- * Devuelve true si ya existe una alerta “reciente” de ese tipo para la variante,
- * usando comparación de fechas en JS (sin $gte en la consulta).
- */
-async function hasRecentVariantAlert(
+/** Crear y emitir una alerta a admins */
+async function createAndEmit(alertDoc, io) {
+  const alert = await AdminAlert.create({ seen: false, ...alertDoc });
+  try {
+    if (io && typeof io.to === "function") {
+      io.to("role:admin").emit("admin:alert", {
+        _id: alert._id,
+        type: alert.type,
+        product: alert.product,
+        variant: alert.variant,
+        order: alert.order,
+        orderStatus: alert.orderStatus,
+        message: alert.message,
+        seen: alert.seen,
+        createdAt: alert.createdAt,
+      });
+    }
+  } catch (e) {
+    console.warn("[admin:alert] emit error:", e?.message || e);
+  }
+  return alert;
+}
+
+/** ===== Inventario ===== */
+async function emitVariantOutOfStockAlertIfNeeded(
   productId,
   sizeId,
   colorId,
-  type,
-  minDate
+  io
 ) {
-  // última alerta de ese tipo para esa variante
-  const last = await AdminAlert.findOne({
-    product: productId,
-    type,
-    "variant.size": sizeId,
-    "variant.color": colorId,
-  })
-    .sort({ createdAt: -1 })
-    .lean();
-
-  if (!last) return false;
-  // Comparamos en JS. Si la última es posterior al umbral, consideramos “reciente”.
-  try {
-    const lastAt = new Date(last.createdAt).getTime();
-    return lastAt >= minDate.getTime();
-  } catch {
-    return false;
-  }
-}
-
-/**
- * OUT OF STOCK por variante
- */
-async function emitVariantOutOfStockAlertIfNeeded(productId, sizeId, colorId) {
   debugSchemaOnce();
 
-  // Trae SOLO la variante concreta
   const prod = await Product.findOne(
     { _id: productId, "variants.size": sizeId, "variants.color": colorId },
     { name: 1, "variants.$": 1 }
@@ -91,9 +112,8 @@ async function emitVariantOutOfStockAlertIfNeeded(productId, sizeId, colorId) {
 
   const variant = prod.variants[0];
   const stock = Number(variant.stock) || 0;
-  if (stock > 0) return; // No sin stock
+  if (stock > 0) return;
 
-  // Evitar duplicado: si ya hubo una hoy, no crear otra
   const today = startOfToday();
   const alreadyToday = await hasRecentVariantAlert(
     productId,
@@ -104,21 +124,25 @@ async function emitVariantOutOfStockAlertIfNeeded(productId, sizeId, colorId) {
   );
   if (alreadyToday) return;
 
-  await AdminAlert.create({
-    type: "OUT_OF_STOCK_VARIANT",
-    product: productId,
-    variant: { size: sizeId, color: colorId },
-    message: `La variante (talla/color) de "${prod.name}" se quedó sin stock.`,
-  });
+  await createAndEmit(
+    {
+      type: "OUT_OF_STOCK_VARIANT",
+      product: productId,
+      variant: { size: sizeId, color: colorId },
+      message: `La variante (talla/color) de "${prod.name}" se quedó sin stock.`,
+    },
+    io
+  );
 }
 
-/**
- * LOW STOCK por variante
- */
-async function emitVariantLowStockAlertIfNeeded(productId, sizeId, colorId) {
+async function emitVariantLowStockAlertIfNeeded(
+  productId,
+  sizeId,
+  colorId,
+  io
+) {
   debugSchemaOnce();
 
-  // Trae SOLO la variante concreta
   const prod = await Product.findOne(
     { _id: productId, "variants.size": sizeId, "variants.color": colorId },
     { name: 1, "variants.$": 1 }
@@ -130,9 +154,8 @@ async function emitVariantLowStockAlertIfNeeded(productId, sizeId, colorId) {
   const stock = Number(variant.stock) || 0;
 
   if (stock <= 0) return; // OUT_OF_STOCK_VARIANT ya se encarga
-  if (stock > LOW_STOCK_THRESHOLD) return; // No es “bajo” aún
+  if (stock > LOW_STOCK_THRESHOLD) return;
 
-  // Evitar spam: si ya hubo una en las últimas 24h, no crear
   const since = since24h();
   const hadRecent = await hasRecentVariantAlert(
     productId,
@@ -143,15 +166,18 @@ async function emitVariantLowStockAlertIfNeeded(productId, sizeId, colorId) {
   );
   if (hadRecent) return;
 
-  await AdminAlert.create({
-    type: "LOW_STOCK_VARIANT",
-    product: productId,
-    variant: { size: sizeId, color: colorId },
-    message: `Stock bajo en la variante (talla/color) de "${prod.name}" (stock: ${stock}).`,
-  });
+  await createAndEmit(
+    {
+      type: "LOW_STOCK_VARIANT",
+      product: productId,
+      variant: { size: sizeId, color: colorId },
+      message: `Stock bajo en la variante (talla/color) de "${prod.name}" (stock: ${stock}).`,
+    },
+    io
+  );
 }
 
-//funciones para el analicis del estado de los pedidos
+/** ===== Pedidos (estancados) ===== */
 async function scanAndAlertStaleOrders(io) {
   const now = Date.now();
 
@@ -174,7 +200,6 @@ async function scanAndAlertStaleOrders(io) {
     const thrMs = hoursToMs(SLA_HOURS[status] || 72);
 
     if (ageMs >= thrMs) {
-      // Dedupe (re-alerta cada RENOTIFY_HOURS)
       const skip = await lastAlertWithin(
         o._id,
         status,
@@ -187,25 +212,16 @@ async function scanAndAlertStaleOrders(io) {
         .slice(-8)
         .toUpperCase()} lleva ${hours}h en estado "${status}".`;
 
-      const alert = await AdminAlert.create({
-        type: "ORDER_STALE_STATUS",
-        order: o._id,
-        orderStatus: status,
-        message: msg,
-      });
-      created++;
-
-      // Socket.IO push a admins
-      if (io && typeof io.to === "function") {
-        io.to("role:admin").emit("admin:alert", {
-          _id: alert._id,
+      await createAndEmit(
+        {
           type: "ORDER_STALE_STATUS",
-          order: String(o._id),
+          order: o._id,
           orderStatus: status,
           message: msg,
-          createdAt: alert.createdAt,
-        });
-      }
+        },
+        io
+      );
+      created++;
     }
   }
 
@@ -216,8 +232,43 @@ async function scanAndAlertStaleOrders(io) {
   }
 }
 
+/** ===== Pedidos (nuevos / cambios de estado) ===== */
+async function emitOrderCreatedAlert(orderDoc, io) {
+  const short = String(orderDoc._id).slice(-8).toUpperCase();
+  return createAndEmit(
+    {
+      type: "ORDER_CREATED",
+      order: orderDoc._id,
+      orderStatus: orderDoc.status || "pendiente",
+      message: `Nuevo pedido #${short} creado (${
+        orderDoc.items?.length || 0
+      } ítems).`,
+    },
+    io
+  );
+}
+
+async function emitOrderStatusChangedAlert(orderDoc, prevStatus, io) {
+  const to = String(orderDoc.status);
+  const short = String(orderDoc._id).slice(-8).toUpperCase();
+  if (prevStatus === to) return null;
+  return createAndEmit(
+    {
+      type: "ORDER_STATUS_CHANGED",
+      order: orderDoc._id,
+      orderStatus: to,
+      message: `Pedido #${short}: estado "${prevStatus || "—"}" → "${to}".`,
+    },
+    io
+  );
+}
+
 module.exports = {
+  // inventario
   emitVariantOutOfStockAlertIfNeeded,
   emitVariantLowStockAlertIfNeeded,
+  // pedidos
   scanAndAlertStaleOrders,
+  emitOrderCreatedAlert,
+  emitOrderStatusChangedAlert,
 };

@@ -1,3 +1,4 @@
+// controllers/OrderController.js
 const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
@@ -10,29 +11,16 @@ const {
 const {
   emitVariantOutOfStockAlertIfNeeded,
   emitVariantLowStockAlertIfNeeded,
+  emitOrderCreatedAlert,
+  emitOrderStatusChangedAlert,
 } = require("../utils/stockAlerts");
 
 const Size = require("../models/Size");
 const Color = require("../models/Color");
 
-// === NUEVO: helpers de estado ===
-const toObjectId = (v) =>
-  v && mongoose.Types.ObjectId.isValid(String(v))
-    ? new mongoose.Types.ObjectId(String(v))
-    : null;
-
-const unitFrom = (p) =>
-  typeof p?.effectivePrice === "number"
-    ? Number(p.effectivePrice)
-    : Number(p?.price || 0);
-
-// Encapsulamos el populate que necesitamos en TODOS los lecturas/devoluciones
 const populateSpec = [
   { path: "user", select: "name email" },
-  {
-    path: "items.product",
-    select: "name sku images price effectivePrice",
-  },
+  { path: "items.product", select: "name sku images price effectivePrice" },
   { path: "items.size", select: "label" },
   { path: "items.color", select: "name" },
 ];
@@ -45,16 +33,9 @@ const VALID_STATUSES = [
   "cancelado",
 ];
 
-async function populateOrderDoc(orderDoc) {
-  if (!orderDoc) return orderDoc;
-  await orderDoc.populate(populateSpec);
-  return orderDoc;
-}
-
 function pushStatusTransition(orderDoc, from, to, byUserId) {
   const now = new Date();
   orderDoc.status = to;
-  // history
   orderDoc.statusHistory = orderDoc.statusHistory || [];
   orderDoc.statusHistory.push({
     from: from || null,
@@ -62,18 +43,14 @@ function pushStatusTransition(orderDoc, from, to, byUserId) {
     at: now,
     by: byUserId || null,
   });
-  // per-status timestamp
   orderDoc.statusTimestamps = orderDoc.statusTimestamps || {};
   orderDoc.statusTimestamps[to] = now;
-  // current moment
   orderDoc.currentStatusAt = now;
 }
 
-// Clave lógica de ítem (para comparar por variante)
 const itemKey = (i) =>
   `${String(i.product)}::${String(i.size || "")}::${String(i.color || "")}`;
 
-// Precio efectivo del producto (usa método del modelo si existe)
 function effectivePrice(product) {
   try {
     if (typeof product.getEffectivePrice === "function") {
@@ -85,7 +62,6 @@ function effectivePrice(product) {
   }
 }
 
-/* ===================== Helpers SKU por variante ===================== */
 const skuPrefixFromName = (name = "") => {
   const clean = String(name)
     .normalize("NFKD")
@@ -131,10 +107,10 @@ const buildVariantSku = async (productName, sizeId, colorId) => {
 };
 
 /** ========================== CREATE ========================== */
-/** ========================== CREATE ========================== */
 exports.createOrder = async (req, res) => {
   const compensations = [];
   try {
+    const io = req.app.get("io"); // <— para emitir
     const { items, shippingInfo } = req.body;
 
     const idempotencyKey =
@@ -147,7 +123,6 @@ exports.createOrder = async (req, res) => {
         idempotencyKey,
       });
       if (existing) {
-        // ⬇⬇ NUEVO: populate antes de serializar
         await existing.populate(populateSpec);
         return res.status(200).json({
           orderId: existing._id,
@@ -192,7 +167,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // Deduplicar líneas
+    // Deduplicar
     const dedup = new Map();
     for (const it of normalizedItems) {
       const key = itemKey(it);
@@ -221,7 +196,6 @@ exports.createOrder = async (req, res) => {
 
       const variant = prodDoc.variants[0];
       const stockBefore = Number(variant.stock) || 0;
-
       if (stockBefore < it.quantity) {
         throw new Error(
           `Stock insuficiente para ${prodDoc.name}. Disponible: ${stockBefore}`
@@ -236,7 +210,6 @@ exports.createOrder = async (req, res) => {
         },
         { $inc: { "variants.$.stock": -it.quantity } }
       );
-
       if (!dec.modifiedCount) {
         throw new Error(`Stock insuficiente (carrera) para ${prodDoc.name}.`);
       }
@@ -287,7 +260,6 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // === NUEVO: inicializar fechas de estado ===
     const now = new Date();
     const order = await Order.create({
       user: req.user.id,
@@ -309,19 +281,34 @@ exports.createOrder = async (req, res) => {
       },
     });
 
-    // Alertas stock
+    // Alertas inventario
     for (const it of itemsToProcess) {
       try {
-        await emitVariantOutOfStockAlertIfNeeded(it.product, it.size, it.color);
-        await emitVariantLowStockAlertIfNeeded(it.product, it.size, it.color);
+        await emitVariantOutOfStockAlertIfNeeded(
+          it.product,
+          it.size,
+          it.color,
+          io
+        );
+        await emitVariantLowStockAlertIfNeeded(
+          it.product,
+          it.size,
+          it.color,
+          io
+        );
       } catch (e) {
         console.warn("emitVariant... error:", e?.message || e);
       }
     }
 
-    clearDashboardCache();
+    // Alerta de pedido creado
+    try {
+      await emitOrderCreatedAlert(order, io);
+    } catch (e) {
+      console.warn("emitOrderCreatedAlert error:", e?.message || e);
+    }
 
-    // ⬇⬇ NUEVO: populate ANTES de serializar/retornar
+    clearDashboardCache();
     await order.populate(populateSpec);
 
     return res
@@ -340,7 +327,6 @@ exports.createOrder = async (req, res) => {
         );
       } catch (_) {}
     }
-
     console.error("Error en createOrder:", err);
     return res
       .status(400)
@@ -349,11 +335,13 @@ exports.createOrder = async (req, res) => {
 };
 
 /** ========================== READ (USUARIO) ========================== */
-/** ========================== READ (USUARIO) ========================== */
 exports.getMyOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user.id })
-      .populate({ path: "items.product", select: "name price images sku effectivePrice" }) 
+      .populate({
+        path: "items.product",
+        select: "name price images sku effectivePrice",
+      })
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" })
       .sort({ createdAt: -1 });
@@ -365,7 +353,6 @@ exports.getMyOrders = async (req, res) => {
   }
 };
 
-
 /** ========================== READ (ADMIN) ========================== */
 exports.getAllOrders = async (req, res) => {
   try {
@@ -375,12 +362,14 @@ exports.getAllOrders = async (req, res) => {
 
     const orders = await Order.find(filter)
       .populate("user", "name email")
-      .populate({ path: "items.product", select: "name price sku images effectivePrice" }) 
+      .populate({
+        path: "items.product",
+        select: "name price sku images effectivePrice",
+      })
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" })
       .sort({ createdAt: -1 });
 
-    // === NUEVO: normalizamos con serializer de admin
     res.json(orders.map(serializeOrderForAdmin));
   } catch (err) {
     console.error("Error getAllOrders:", err);
@@ -391,11 +380,11 @@ exports.getAllOrders = async (req, res) => {
 /** ========================== UPDATE STATUS (ADMIN) ========================== */
 exports.updateOrderStatus = async (req, res) => {
   try {
+    const io = req.app.get("io");
     const { id } = req.params;
     const { status } = req.body;
 
-    const allowed = VALID_STATUSES;
-    if (!allowed.includes(String(status))) {
+    if (!VALID_STATUSES.includes(String(status))) {
       return res.status(400).json({ error: "Estado inválido" });
     }
 
@@ -403,13 +392,9 @@ exports.updateOrderStatus = async (req, res) => {
     if (!order) return res.status(404).json({ error: "Pedido no encontrado" });
 
     const prevStatus = order.status;
-
-    // === NUEVO: registrar transición
     pushStatusTransition(order, prevStatus, String(status), req.user?.id);
 
-    // Consideramos "facturado" como "pago confirmado"
     const becomesPaid = status === "facturado";
-
     if (becomesPaid && !order.wasCountedForBestsellers) {
       for (const item of order.items) {
         if (item.product && item.quantity > 0) {
@@ -423,6 +408,13 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     await order.save();
+
+    // Alerta de cambio de estado
+    try {
+      await emitOrderStatusChangedAlert(order, prevStatus, io);
+    } catch (e) {
+      console.warn("emitOrderStatusChangedAlert error:", e?.message || e);
+    }
 
     return res.json({
       message: "Estado actualizado correctamente",
@@ -443,12 +435,14 @@ exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
       .populate("user", "email name")
-      .populate({ path: "items.product", select: "name price sku images effectivePrice" })
+      .populate({
+        path: "items.product",
+        select: "name price sku images effectivePrice",
+      })
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" });
 
     if (!order) return res.status(404).json({ error: "Pedido no encontrado" });
-
     return res.json(serializeOrderForAdmin(order));
   } catch (err) {
     console.error("Error getOrderById:", err);
@@ -460,7 +454,10 @@ exports.getMyOrderById = async (req, res) => {
   try {
     const id = req.params.id;
     const order = await Order.findById(id)
-      .populate({ path: "items.product", select: "name price sku images effectivePrice" })
+      .populate({
+        path: "items.product",
+        select: "name price sku images effectivePrice",
+      })
       .populate({ path: "items.size", select: "label" })
       .populate({ path: "items.color", select: "name" });
 
@@ -468,7 +465,6 @@ exports.getMyOrderById = async (req, res) => {
     if (String(order.user) !== String(req.user.id)) {
       return res.status(403).json({ error: "No autorizado" });
     }
-
     return res.json(serializeOrderForUser(order));
   } catch (err) {
     console.error("Error getMyOrderById:", err);
@@ -489,6 +485,7 @@ exports.updateOrder = async (req, res) => {
   } = req.body;
 
   try {
+    const io = req.app.get("io");
     const isItemsChange = Array.isArray(items);
     const isMetaChange =
       typeof status !== "undefined" ||
@@ -497,13 +494,16 @@ exports.updateOrder = async (req, res) => {
       typeof adminComment !== "undefined" ||
       (shippingInfo && typeof shippingInfo === "object");
 
-    // === NUEVO: si viene "status" pero NO cambios de items, no usar findByIdAndUpdate plano; hay que registrar transición
+    // Solo metadatos (incluye status)
     if (!isItemsChange && isMetaChange) {
       const order = await Order.findById(id);
       if (!order)
         return res.status(404).json({ error: "Pedido no encontrado" });
 
-      if (typeof status !== "undefined") {
+      const hadStatus = typeof status !== "undefined";
+      const prevStatus = order.status;
+
+      if (hadStatus) {
         if (!VALID_STATUSES.includes(String(status))) {
           return res.status(400).json({ error: "Estado inválido" });
         }
@@ -532,12 +532,17 @@ exports.updateOrder = async (req, res) => {
       }
 
       await order.save();
-
       await order.populate(populateSpec);
-
       clearDashboardCache();
 
-      await order.populate(populateSpec);
+      // Emitir si cambió estado
+      if (hadStatus) {
+        try {
+          await emitOrderStatusChangedAlert(order, prevStatus, io);
+        } catch (e) {
+          console.warn("emitOrderStatusChangedAlert(error)", e?.message || e);
+        }
+      }
 
       return res.json({
         message: "Pedido actualizado",
@@ -549,7 +554,7 @@ exports.updateOrder = async (req, res) => {
       return res.status(400).json({ error: "No hay cambios para aplicar" });
     }
 
-    // ==== Cambios de ITEMS (con transacción) ====
+    // Cambios de ítems con transacción
     const session = await mongoose.startSession();
     try {
       const order = await Order.findById(id);
@@ -620,7 +625,7 @@ exports.updateOrder = async (req, res) => {
 
             if (!prev) {
               const stockBefore = currentStock;
-              const stockAfter = currentStock - diff; // diff > 0
+              const stockAfter = currentStock - diff;
               stockBeforePurchase = stockBefore;
               stockAtPurchase = stockAfter;
             } else if (prev && typeof stockAtPurchase !== "number") {
@@ -661,12 +666,14 @@ exports.updateOrder = async (req, res) => {
                 await emitVariantOutOfStockAlertIfNeeded(
                   pid,
                   n.sizeId,
-                  n.colorId
+                  n.colorId,
+                  io
                 );
                 await emitVariantLowStockAlertIfNeeded(
                   pid,
                   n.sizeId,
-                  n.colorId
+                  n.colorId,
+                  io
                 );
               }
             } catch (e) {
@@ -711,7 +718,10 @@ exports.updateOrder = async (req, res) => {
           order.items = rebuilt;
         }
 
-        if (typeof status !== "undefined") {
+        const hadStatus = typeof status !== "undefined";
+        const prevStatus = order.status;
+
+        if (hadStatus) {
           if (!VALID_STATUSES.includes(String(status))) {
             throw new Error("Estado inválido");
           }
@@ -770,6 +780,19 @@ exports.updateOrder = async (req, res) => {
         await order.save({ session });
 
         clearDashboardCache();
+
+        // Emitir si cambió estado
+        if (hadStatus) {
+          try {
+            await emitOrderStatusChangedAlert(order, prevStatus, io);
+          } catch (e) {
+            console.warn(
+              "emitOrderStatusChangedAlert(tx) error:",
+              e?.message || e
+            );
+          }
+        }
+
         res.json({
           message: "Pedido actualizado con control de stock",
           order: serializeOrderForAdmin(order),
@@ -795,6 +818,7 @@ exports.updateOrder = async (req, res) => {
 exports.cancelOrder = async (req, res) => {
   const session = await mongoose.startSession();
   try {
+    const io = req.app.get("io");
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Pedido no encontrado" });
 
@@ -821,14 +845,21 @@ exports.cancelOrder = async (req, res) => {
         }
       }
 
-      // === NUEVO: transición a cancelado
+      const prev = order.status;
       pushStatusTransition(order, order.status, "cancelado", req.user?.id);
-
       await order.save({ session });
 
       await order.populate(populateSpec);
-
       clearDashboardCache();
+
+      try {
+        await emitOrderStatusChangedAlert(order, prev, io);
+      } catch (e) {
+        console.warn(
+          "emitOrderStatusChangedAlert(cancel) error:",
+          e?.message || e
+        );
+      }
 
       res.json({
         message: "Pedido cancelado y stock restablecido",
@@ -869,13 +900,11 @@ exports.getGlobalSalesHistory = async (req, res) => {
 
     const match = {};
     if (status) match.status = status;
-
     if (from || to) {
       match.createdAt = {};
       if (from) match.createdAt.$gte = new Date(from);
       if (to) match.createdAt.$lte = new Date(to);
     }
-
     if (userId && mongoose.Types.ObjectId.isValid(userId)) {
       match.user = new mongoose.Types.ObjectId(userId);
     }
@@ -908,7 +937,6 @@ exports.getGlobalSalesHistory = async (req, res) => {
         },
       },
       { $unwind: { path: "$userDoc", preserveNullAndEmptyArrays: true } },
-
       {
         $lookup: {
           from: "products",
@@ -918,7 +946,6 @@ exports.getGlobalSalesHistory = async (req, res) => {
         },
       },
       { $unwind: { path: "$productDoc", preserveNullAndEmptyArrays: true } },
-
       {
         $lookup: {
           from: "sizes",
@@ -928,7 +955,6 @@ exports.getGlobalSalesHistory = async (req, res) => {
         },
       },
       { $unwind: { path: "$sizeDoc", preserveNullAndEmptyArrays: true } },
-
       {
         $lookup: {
           from: "colors",
@@ -938,7 +964,6 @@ exports.getGlobalSalesHistory = async (req, res) => {
         },
       },
       { $unwind: { path: "$colorDoc", preserveNullAndEmptyArrays: true } },
-
       {
         $addFields: {
           unitPrice: { $toDouble: { $ifNull: ["$items.unitPrice", 0] } },
@@ -947,7 +972,6 @@ exports.getGlobalSalesHistory = async (req, res) => {
         },
       },
       { $addFields: { total: { $multiply: ["$unitPrice", "$quantity"] } } },
-
       {
         $project: {
           _id: 0,
@@ -956,16 +980,12 @@ exports.getGlobalSalesHistory = async (req, res) => {
           status: 1,
           userId: "$user",
           userName: { $ifNull: ["$userDoc.name", "Desconocido"] },
-
           productId: "$items.product",
           productName: { $ifNull: ["$productDoc.name", "Producto eliminado"] },
-
           sizeId: "$items.size",
           sizeLabel: { $ifNull: ["$sizeDoc.label", "Desconocido"] },
-
           colorId: "$items.color",
           colorName: { $ifNull: ["$colorDoc.name", "Desconocido"] },
-
           unitPrice: 1,
           quantity: 1,
           total: 1,

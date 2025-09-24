@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const AdminAlert = require("../models/AdminAlert");
 
-// Usa tus middlewares reales:
+// Reemplaza por tus middlewares reales:
 const requireAuth = (req, res, next) => {
   if (!req.user) return res.status(401).json({ error: "No autenticado" });
   next();
@@ -19,26 +19,27 @@ router.use(requireAuth, requireAdmin);
 /**
  * GET /api/admin/alerts
  * Query:
- *  - limit (default 10)
+ *  - limit (default 10, max 50)
  *  - seen=0|1 (opcional)
+ *  - type=... (opcional) ej: ORDER_CREATED, ORDER_STATUS_CHANGED, OUT_OF_STOCK_VARIANT...
  */
 router.get("/", async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 10, 50);
     const seenParam = req.query.seen;
+    const typeParam = req.query.type;
     const filter = {};
     if (seenParam === "0") filter.seen = false;
     if (seenParam === "1") filter.seen = true;
+    if (typeParam) filter.type = typeParam;
 
     const [items, unread] = await Promise.all([
       AdminAlert.find(filter)
         .sort({ createdAt: -1 })
         .limit(limit)
-        // inventario
         .populate({ path: "product", select: "name" })
         .populate({ path: "variant.size", select: "label" })
         .populate({ path: "variant.color", select: "name" })
-        // pedidos estancados
         .populate({ path: "order", select: "status currentStatusAt createdAt" })
         .lean(),
       AdminAlert.countDocuments({ seen: false }),
@@ -51,9 +52,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-/**
- * PATCH /api/admin/alerts/seen-all
- */
+/** PATCH /api/admin/alerts/seen-all */
 router.patch("/seen-all", async (req, res) => {
   try {
     await AdminAlert.updateMany({ seen: false }, { $set: { seen: true } });
@@ -65,9 +64,7 @@ router.patch("/seen-all", async (req, res) => {
   }
 });
 
-/**
- * PATCH /api/admin/alerts/:id/seen
- */
+/** PATCH /api/admin/alerts/:id/seen */
 router.patch("/:id/seen", async (req, res) => {
   try {
     const id = req.params.id;

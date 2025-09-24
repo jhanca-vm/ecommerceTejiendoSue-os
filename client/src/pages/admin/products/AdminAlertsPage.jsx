@@ -1,10 +1,8 @@
+// src/pages/admin/alerts/AdminAlertsPage.jsx
 import { useEffect, useState, useRef } from "react";
-import apiUrl from "../../../api/apiClient";
+import api from "../../../api/apiClient";
 import { Link } from "react-router-dom";
-import { socket } from "../../../socket";
-
-// Opcional: si luego quieres tiempo real, podrás importar socket y escuchar "admin:alert"
-
+import { useAdminAlerts } from "../../../contexts/AdminAlertsContext";
 
 const mapType = (t) => {
   if (t === "OUT_OF_STOCK_VARIANT") return "Variante sin stock";
@@ -12,21 +10,25 @@ const mapType = (t) => {
   if (t === "OUT_OF_STOCK") return "Producto sin stock";
   if (t === "LOW_STOCK") return "Producto stock bajo";
   if (t === "ORDER_STALE_STATUS") return "Pedido estancado";
+  if (t === "ORDER_CREATED") return "Pedido creado";
+  if (t === "ORDER_STATUS_CHANGED") return "Estado de pedido";
   return t;
 };
 
 const AdminAlertsPage = () => {
   const [items, setItems] = useState([]);
-  const [seen, setSeen] = useState("0");
+  const [seen, setSeen] = useState("0"); // "0" no vistas, "1" vistas, "all"
   const [loading, setLoading] = useState(true);
   const unsubRef = useRef(null);
+
+  const { socket, syncUnread } = useAdminAlerts();
 
   const load = async () => {
     setLoading(true);
     try {
       const params = { limit: 200 };
       if (seen === "0" || seen === "1") params.seen = seen;
-      const { data } = await apiUrl.get("/admin/alerts", { params });
+      const { data } = await api.get("/admin/alerts", { params });
       setItems(data?.items || []);
     } finally {
       setLoading(false);
@@ -34,33 +36,34 @@ const AdminAlertsPage = () => {
   };
 
   useEffect(() => {
-    load(); 
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seen]);
 
-  // (Opcional) Esqueleto para tiempo real por Socket.IO:
-   useEffect(() => {
-  //   // Conectar una sola vez
-     socket.connect();
-     const onAlert = (alert) => {
-  //     // Si estás filtrando "no vistas", inserta solo si alert.seen === false
-       setItems((prev) => [alert, ...prev]);
-     };
-     socket.on("admin:alert", onAlert);
-     unsubRef.current = () => {
-       socket.off("admin:alert", onAlert);
-       socket.disconnect();
-     };
-     return () => unsubRef.current?.();
-   }, []);
+  // Tiempo real (usa el socket del contexto; NO reconectar aquí)
+  useEffect(() => {
+    if (!socket) return;
+    const onAlert = (alert) => {
+      // Inserta al principio; si el filtro actual es "0" (no vistas), encaja perfecto
+      setItems((prev) => [alert, ...prev]);
+      syncUnread();
+    };
+    socket.on("admin:alert", onAlert);
+    unsubRef.current = () => socket.off("admin:alert", onAlert);
+    return () => unsubRef.current?.();
+  }, [socket, syncUnread]);
 
   const markSeen = async (id, value = true) => {
-    await apiUrl.patch(`/admin/alerts/${id}/seen`, { seen: value });
+    await api.patch(`/admin/alerts/${id}/seen`, { seen: value });
+    // Refresca lista más contador
     setItems((arr) => arr.filter((a) => a._id !== id));
+    syncUnread();
   };
 
   const markAllSeen = async () => {
-    await apiUrl.patch("/admin/alerts/seen-all", { seen: true });
-    load();
+    await api.patch("/admin/alerts/seen-all", { seen: true });
+    await load();
+    syncUnread();
   };
 
   const fmtDate = (d) => (d ? new Date(d).toLocaleString() : "—");
@@ -108,7 +111,18 @@ const AdminAlertsPage = () => {
           </thead>
           <tbody>
             {items.map((al) => {
-              const isOrder = al.type === "ORDER_STALE_STATUS";
+              const isOrder =
+                al.type === "ORDER_STALE_STATUS" ||
+                al.type === "ORDER_CREATED" ||
+                al.type === "ORDER_STATUS_CHANGED";
+
+              const orderId =
+                typeof al.order === "string" ? al.order : al.order?._id || "";
+
+              const orderLast8 = orderId
+                ? String(orderId).slice(-8).toUpperCase()
+                : "—";
+
               return (
                 <tr key={al._id}>
                   <td>{mapType(al.type)}</td>
@@ -117,9 +131,9 @@ const AdminAlertsPage = () => {
                     {isOrder ? (
                       <>
                         Pedido:&nbsp;
-                        {al.order ? (
-                          <Link to={`/admin/orders/${al.order}`}>
-                            #{String(al.order).slice(-8).toUpperCase()}
+                        {orderId ? (
+                          <Link to={`/admin/orders/${orderId}`}>
+                            #{orderLast8}
                           </Link>
                         ) : (
                           "—"

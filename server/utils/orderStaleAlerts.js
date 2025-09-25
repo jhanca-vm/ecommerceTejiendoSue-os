@@ -8,7 +8,6 @@ const SLA_HOURS = {
   pendiente: Number(process.env.ORDER_SLA_PENDIENTE_HOURS || 72),
   facturado: Number(process.env.ORDER_SLA_FACTURADO_HOURS || 72),
   enviado: Number(process.env.ORDER_SLA_ENVIADO_HOURS || 72),
-  // entregado/cancelado no aplican para "estancado"
 };
 
 // Re-notificación cada N horas para el mismo pedido/estado

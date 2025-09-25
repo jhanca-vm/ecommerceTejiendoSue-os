@@ -86,7 +86,7 @@ const orderSchema = new mongoose.Schema(
     adminComment: { type: String, default: "" },
     shippingInfo: { type: shippingInfoSchema, default: undefined },
 
-    // 🔒 Evita sumar ventas dos veces si el estado cambia varias veces
+    // Evita sumar ventas dos veces si el estado cambia varias veces
     wasCountedForBestsellers: { type: Boolean, default: false },
   },
   { timestamps: true }

@@ -1,4 +1,3 @@
-// controllers/OrderController.js
 const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
@@ -17,6 +16,14 @@ const {
 
 const Size = require("../models/Size");
 const Color = require("../models/Color");
+
+/*const {
+  pushStatusTransition,
+  populateSpec,
+  serializeOrderForAdmin,
+  clearDashboardCache,
+  emitOrderStatusChangedAlert,
+} = require("../utils/orders");*/
 
 const populateSpec = [
   { path: "user", select: "name email" },
@@ -815,24 +822,35 @@ exports.updateOrder = async (req, res) => {
 };
 
 /** ========================== CANCEL ========================== */
-exports.cancelOrder = async (req, res) => {
-  const session = await mongoose.startSession();
-  try {
-    const io = req.app.get("io");
-    const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ error: "Pedido no encontrado" });
+exports.cancelOrder = async (req, res, next) => {
+  const { id } = req.params;
 
-    if (order.status !== "pendiente") {
-      return res
-        .status(400)
-        .json({ error: "Solo pedidos 'pendiente' pueden cancelarse" });
+  // 1) Validación temprana del id
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: 'ID de pedido inválido' });
+  }
+
+  // Función que ejecuta la cancelación (puede correrse con o sin session)
+  const performCancel = async (session = null) => {
+    const findOpts = session ? { session } : {};
+    // Relee la orden dentro del contexto (si hay transacción)
+    const order = await Order.findById(id, null, findOpts);
+    if (!order) return { status: 404, body: { error: 'Pedido no encontrado' } };
+
+    if (order.status !== 'pendiente') {
+      return {
+        status: 400,
+        body: { error: "Solo pedidos 'pendiente' pueden cancelarse" },
+      };
     }
 
-    await session.withTransaction(async () => {
-      for (const item of order.items) {
-        const product = await Product.findById(item.product).session(session);
-        if (!product) continue;
+    // Restituir stock
+    for (const item of order.items || []) {
+      const product = await Product.findById(item.product, null, findOpts);
+      if (!product) continue;
 
+      // Si hay variantes
+      if (Array.isArray(product.variants) && product.variants.length) {
         const vIndex = product.variants.findIndex(
           (v) =>
             String(v.size) === String(item.size) &&
@@ -840,35 +858,75 @@ exports.cancelOrder = async (req, res) => {
         );
         if (vIndex !== -1) {
           const current = Number(product.variants[vIndex].stock) || 0;
-          product.variants[vIndex].stock = current + Number(item.quantity);
-          await product.save({ session });
+          product.variants[vIndex].stock = current + Number(item.quantity || 0);
         }
+      } else {
+        // Fallback: productos sin variantes
+        const current = Number(product.stock) || 0;
+        product.stock = current + Number(item.quantity || 0);
       }
+      await product.save(findOpts);
+    }
 
-      const prev = order.status;
-      pushStatusTransition(order, order.status, "cancelado", req.user?.id);
-      await order.save({ session });
+    const prev = order.status;
+    pushStatusTransition(order, order.status, 'cancelado', req.user?._id);
+    await order.save(findOpts);
 
-      await order.populate(populateSpec);
-      clearDashboardCache();
+    // Popular para la respuesta
+    await order.populate(populateSpec);
+    clearDashboardCache();
 
-      try {
-        await emitOrderStatusChangedAlert(order, prev, io);
-      } catch (e) {
-        console.warn(
-          "emitOrderStatusChangedAlert(cancel) error:",
-          e?.message || e
-        );
-      }
+    // Notificación (no debe tumbar la operación)
+    try {
+      const io = req.app.get('io');
+      await emitOrderStatusChangedAlert(order, prev, io);
+    } catch (e) {
+      console.warn('emitOrderStatusChangedAlert(cancel) error:', e?.message || e);
+    }
 
-      res.json({
-        message: "Pedido cancelado y stock restablecido",
+    return {
+      status: 200,
+      body: {
+        message: 'Pedido cancelado y stock restablecido',
         order: serializeOrderForAdmin(order),
-      });
+      },
+    };
+  };
+
+  // 2) Intentar con transacción (si hay Replica Set); si falla por RS, hacer fallback
+  const session = await mongoose.startSession();
+  try {
+    let response;
+    await session.withTransaction(async () => {
+      response = await performCancel(session);
+      if (response.status !== 200) {
+        // Forzar rollback devolviendo error para abortar la transacción
+        throw Object.assign(new Error('abort_tx'), { _http: response });
+      }
     });
+
+    // Si salió bien dentro de la tx
+    return res.status(response.status).json(response.body);
   } catch (err) {
-    console.error("Error al cancelar pedido:", err);
-    res.status(500).json({ error: "Error al cancelar el pedido" });
+    // Si era un error “controlado” para abortar tx, responde con ese código/mensaje
+    if (err && err._http) {
+      return res.status(err._http.status).json(err._http.body);
+    }
+
+    // Detecta falta de Replica Set y hace fallback sin transacción
+    const noReplicaMsg = 'Transaction numbers are only allowed on a replica set member or mongos';
+    if (String(err?.message || '').includes(noReplicaMsg)) {
+      try {
+        const fallback = await performCancel(null); // sin session
+        return res.status(fallback.status).json(fallback.body);
+      } catch (e2) {
+        console.error('Fallback cancelOrder error:', e2);
+        return res.status(500).json({ error: 'Error al cancelar el pedido' });
+      }
+    }
+
+    console.error('Error al cancelar pedido:', err);
+    return res.status(500).json({ error: 'Error al cancelar el pedido' });
   } finally {
     session.endSession();
   }

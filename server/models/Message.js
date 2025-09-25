@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 
 const messageSchema = new mongoose.Schema(
   {
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Conversation",
+      index: true,
+      default: null, // legacy seguirá siendo null; los nuevos mensajes lo establecen
+    },
+
     from: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     to: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
@@ -28,7 +35,7 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// TTL: borra mensajes 7 días después de su createdAt
+// TTL: borra mensajes 7 días después de su createdAt (ajústalo si conviene)
 messageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 7 });
 
 module.exports = mongoose.model("Message", messageSchema);

@@ -17,7 +17,9 @@ const hpp = require("hpp");
 const slowDown = require("express-slow-down");
 const { errors: celebrateErrors } = require("celebrate");
 const jwt = require("jsonwebtoken");
+const cron = require("node-cron");
 
+const { scanAndAlertStaleOrders } = require("./utils/orderStaleAlerts");
 const { issueCsrfToken, requireCsrf } = require("./middleware/csrf");
 const initScheduler = require("./jobs/scheduler");
 
@@ -29,22 +31,40 @@ const {
   CLIENT_URL,
   JSON_LIMIT = "1mb",
   MONGO_URI = "mongodb://localhost:27017/pajatoquilla",
-  JWT_SECRET = "changeme",
-  SOCKET_ORIGIN = process.env.SOCKET_ORIGIN || "",
-  SOCKET_TRANSPORTS = process.env.SOCKET_TRANSPORTS || "websocket,polling",
+  JWT_SECRET,
+  SOCKET_ORIGIN: RAW_SOCKET_ORIGIN,
+  SOCKET_TRANSPORTS = "websocket,polling",
+  JWT_ALG = "HS256",
+  JWT_ISS,
+  JWT_AUD,
+  JWT_CLOCK_TOLERANCE_SEC = "0",
 } = process.env;
 
-const FRONTEND_ORIGIN = (RAW_ORIGIN || CLIENT_URL || "http://localhost:5173").replace(/\/+$/, "");
+if (!JWT_SECRET || JWT_SECRET === "changeme") {
+  console.error(
+    "❌ JWT_SECRET inválido. Configura un secreto fuerte en variables de entorno."
+  );
+  process.exit(1);
+}
+
+const FRONTEND_ORIGIN = (
+  RAW_ORIGIN ||
+  CLIENT_URL ||
+  "http://localhost:5173"
+).replace(/\/+$/, "");
+const SOCKET_ORIGIN = (RAW_SOCKET_ORIGIN || FRONTEND_ORIGIN).replace(
+  /\/+$/,
+  ""
+);
 const isProd = NODE_ENV === "production";
 
 // ======================= App + Server base ======================
 const app = express();
 const server = http.createServer(app);
 
-// Menos info expuesta
+// Minimiza fingerprint
 app.disable("x-powered-by");
-
-// Detrás de proxy (Nginx/Cloudflare) para cookies Secure / req.ip real
+// Respeta proxy para cookies Secure y req.ip
 app.set("trust proxy", 1);
 
 // ======================= Seguridad / Cabeceras ==================
@@ -54,16 +74,24 @@ app.use(
     referrerPolicy: { policy: "no-referrer" },
     frameguard: { action: "deny" },
     noSniff: true,
-    hsts: isProd ? { maxAge: 15552000, includeSubDomains: true, preload: false } : false,
+    hsts: isProd
+      ? { maxAge: 15552000, includeSubDomains: true, preload: false }
+      : false,
     contentSecurityPolicy: isProd
       ? {
           useDefaults: true,
           directives: {
             "default-src": ["'self'"],
             "img-src": ["'self'", "data:", "blob:", FRONTEND_ORIGIN],
-            "connect-src": ["'self'", FRONTEND_ORIGIN, SOCKET_ORIGIN || FRONTEND_ORIGIN, "ws:", "wss:"],
+            "connect-src": [
+              "'self'",
+              FRONTEND_ORIGIN,
+              SOCKET_ORIGIN,
+              "ws:",
+              "wss:",
+            ],
             "script-src": ["'self'"],
-            "style-src": ["'self'", "'unsafe-inline'"],
+            "style-src": ["'self'", "'unsafe-inline'"], // ideal quitar unsafe-inline si tu build lo permite
             "font-src": ["'self'", "data:"],
             "object-src": ["'none'"],
             "frame-ancestors": ["'none'"],
@@ -86,7 +114,10 @@ app.use((req, res, next) => {
 });
 
 // ============================ Logging ===========================
-const accessLogStream = fs.createWriteStream(path.join(__dirname, "access.log"), { flags: "a" });
+const accessLogStream = fs.createWriteStream(
+  path.join(__dirname, "access.log"),
+  { flags: "a" }
+);
 app.use(
   morgan(isProd ? "combined" : "dev", {
     stream: isProd ? accessLogStream : process.stdout,
@@ -95,14 +126,19 @@ app.use(
 );
 
 // ============================ CORS ==============================
-const allowlist = [FRONTEND_ORIGIN, "http://localhost:5173", "http://127.0.0.1:5173"].filter(Boolean);
+const httpAllowlist = [
+  FRONTEND_ORIGIN,
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+].filter(Boolean);
 
 const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin) {
-      return isProd ? cb(new Error("Not allowed by CORS"), false) : cb(null, true);
-    }
-    if (allowlist.includes(origin)) return cb(null, true);
+    if (!origin)
+      return isProd
+        ? cb(new Error("Not allowed by CORS"), false)
+        : cb(null, true);
+    if (httpAllowlist.includes(origin)) return cb(null, true);
     return cb(new Error("Not allowed by CORS"), false);
   },
   credentials: true,
@@ -129,7 +165,6 @@ app.use(cookieParser());
 // ==================== HPP (Parameter Pollution) =================
 app.use(
   hpp({
-    // Permite arrays en estas keys (no aplastar el query)
     whitelist: ["ids", "tags", "sizes", "colors", "categories"],
   })
 );
@@ -162,27 +197,22 @@ app.use((req, _res, next) => {
   }
 });
 
-// =============== Normalizadores anti-400 (CRÍTICOS) =============
-// 1) /api/products/bulk => aceptar ids como string con comas, array o objeto
+// =============== Normalizadores anti-400 ========================
+// 1) /api/products/bulk: ids como string con comas, array u objeto
 app.use((req, _res, next) => {
   if (req.method === "GET" && req.path === "/api/products/bulk") {
     const { ids } = req.query;
     let arr = [];
-
-    if (Array.isArray(ids)) {
-      arr = ids;
-    } else if (typeof ids === "string") {
-      arr = ids.split(",").map((s) => s.trim());
-    } else if (ids && typeof ids === "object") {
+    if (Array.isArray(ids)) arr = ids;
+    else if (typeof ids === "string") arr = ids.split(",").map((s) => s.trim());
+    else if (ids && typeof ids === "object")
       arr = Object.values(ids).map((s) => String(s).trim());
-    }
-
     req.query.ids = (arr || []).filter(Boolean);
   }
   next();
 });
 
-// 2) /api/orders => normalizar items y cantidades si vienen como strings
+// 2) /api/orders: normalizar items y cantidades si vienen como strings
 app.use((req, _res, next) => {
   if (req.method === "POST" && req.path === "/api/orders") {
     try {
@@ -196,40 +226,43 @@ app.use((req, _res, next) => {
             const normalized = { ...it };
             if (normalized.quantity != null) {
               const n = Number(normalized.quantity);
-              normalized.quantity = Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+              normalized.quantity =
+                Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
             }
             if (normalized.product && typeof normalized.product === "object") {
               normalized.product =
-                normalized.product._id || normalized.product.id || normalized.product;
+                normalized.product._id ||
+                normalized.product.id ||
+                normalized.product;
             }
             if (normalized.size && typeof normalized.size === "object") {
-              normalized.size = normalized.size._id || normalized.size.id || normalized.size;
+              normalized.size =
+                normalized.size._id || normalized.size.id || normalized.size;
             }
             if (normalized.color && typeof normalized.color === "object") {
-              normalized.color = normalized.color._id || normalized.color.id || normalized.color;
+              normalized.color =
+                normalized.color._id || normalized.color.id || normalized.color;
             }
             return normalized;
           })
           .filter(Boolean);
       }
-    } catch (_e) {
-      // deja que la validación de la ruta responda 400 si corresponde
-    }
+    } catch (_e) {}
   }
   next();
 });
 
-// ===================== Socket.IO (mismo origin) ================
+// ===================== Socket.IO ================================
 const socketAllowlist = [
   FRONTEND_ORIGIN,
-  SOCKET_ORIGIN || FRONTEND_ORIGIN,
+  SOCKET_ORIGIN,
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ].filter(Boolean);
-
 const transports = SOCKET_TRANSPORTS.split(",")
   .map((s) => s.trim().toLowerCase())
   .filter((s) => s === "websocket" || s === "polling");
+
 const io = new Server(server, {
   cors: {
     origin: socketAllowlist,
@@ -242,23 +275,31 @@ const io = new Server(server, {
 
 app.set("io", io);
 
-// Auth por JWT en handshake + rate limit de eventos
+// Cron opcional de gobernanza/alertas
+cron.schedule("5 * * * *", async () => {
+  try {
+    const ioInstance = app.get("io");
+    await scanAndAlertStaleOrders(ioInstance);
+  } catch (e) {
+    console.error("[cron] scanAndAlertStaleOrders error:", e?.message || e);
+  }
+});
+
+// Auth por JWT en handshake (con alg/iss/aud/tolerancia)
 io.use((socket, next) => {
   try {
     const hdr = socket.handshake.headers?.authorization || "";
     const raw = socket.handshake.auth?.token || hdr.replace(/^Bearer\s+/i, "");
     if (!raw) return next(new Error("unauthorized"));
 
-    const ALG = process.env.JWT_ALG || "HS256";
-    const ISS = process.env.JWT_ISS || undefined;
-    const AUD = process.env.JWT_AUD || undefined;
-    const CLOCK_TOL = Number(process.env.JWT_CLOCK_TOLERANCE_SEC || 0);
-
     const payload = jwt.verify(raw, JWT_SECRET, {
-      algorithms: [ALG],
-      clockTolerance: CLOCK_TOL > 0 ? CLOCK_TOL : undefined,
-      issuer: ISS,
-      audience: AUD,
+      algorithms: [JWT_ALG],
+      clockTolerance:
+        Number(JWT_CLOCK_TOLERANCE_SEC) > 0
+          ? Number(JWT_CLOCK_TOLERANCE_SEC)
+          : undefined,
+      issuer: JWT_ISS || undefined,
+      audience: JWT_AUD || undefined,
     });
 
     socket.data.user = {
@@ -272,7 +313,7 @@ io.use((socket, next) => {
   }
 });
 
-// Token bucket muy simple en memoria por socket
+// Token bucket simple por socket
 const buckets = new Map(); // socket.id -> { ts, count }
 function allowed(socket, limit = 15, windowMs = 5000) {
   const now = Date.now();
@@ -286,11 +327,14 @@ function allowed(socket, limit = 15, windowMs = 5000) {
   return b.count <= limit;
 }
 
+// Sanitización robusta de texto
 function sanitizeText(input, maxLen = 2000) {
   const t = String(input || "");
-  // Normaliza y elimina caracteres de control excepto tab/newline
   const normalized = t.normalize("NFKC").replace(/[^\S\n\t\r]/g, " ");
-  const withoutCtrls = normalized.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+  const withoutCtrls = normalized.replace(
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,
+    ""
+  );
   return withoutCtrls.trim().slice(0, maxLen);
 }
 
@@ -301,7 +345,7 @@ io.on("connection", (socket) => {
     if (socket.data.user?.role === "admin") socket.join("role:admin");
   } catch {}
 
-  // Defensa básica: solo eco local controlado; lo “real” va por /api/messages
+  // Solo eco local controlado; lo “real” va por /api/messages
   socket.on("sendMessage", (message) => {
     if (!allowed(socket)) return;
     const text = sanitizeText(message?.text, 2000);
@@ -339,9 +383,15 @@ function ensureUploadsFolderExists() {
     const uploadsRoot = path.join(__dirname, "uploads");
     const productsDir = path.join(uploadsRoot, "products");
     const reviewsDir = path.join(uploadsRoot, "reviews");
-    if (!fs.existsSync(uploadsRoot)) fs.mkdirSync(uploadsRoot, { recursive: true });
-    if (!fs.existsSync(productsDir)) fs.mkdirSync(productsDir, { recursive: true });
-    if (!fs.existsSync(reviewsDir)) fs.mkdirSync(reviewsDir, { recursive: true });
+    const avatarsDir = path.join(uploadsRoot, "avatars");
+    if (!fs.existsSync(uploadsRoot))
+      fs.mkdirSync(uploadsRoot, { recursive: true });
+    if (!fs.existsSync(productsDir))
+      fs.mkdirSync(productsDir, { recursive: true });
+    if (!fs.existsSync(reviewsDir))
+      fs.mkdirSync(reviewsDir, { recursive: true });
+    if (!fs.existsSync(avatarsDir))
+      fs.mkdirSync(avatarsDir, { recursive: true });
     const keep = path.join(productsDir, ".gitkeep");
     if (!fs.existsSync(keep)) fs.writeFileSync(keep, "");
     console.log("📁 Directorios de uploads OK:", productsDir);
@@ -390,14 +440,44 @@ app.use("/api", (_req, res, next) => {
   next();
 });
 
-// ========================= Rate Limiting puntuales ==============
+// ========================= Rate Limiting ========================
+// Login/registro
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/users", authLimiter);
+
+// Slowdown progresivo anti-bruteforce
+const authSlowdown = slowDown({
+  windowMs: 60 * 1000,
+  delayAfter: 10,
+  delayMs: (used, req) => {
+    const delayAfter = req.slowDown.limit;
+    return (used - delayAfter) * 250;
+  },
+  maxDelayMs: 2000,
+});
+app.use("/api/users", authSlowdown);
+
+// Límites suaves para escrituras críticas
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(["/api/orders", "/api/messages", "/api/cart"], writeLimiter);
+
+// Lecturas de historial de mensajes (anti scraping)
 const messagesReadLimiter = rateLimit({
-  windowMs: 10 * 1000, 
+  windowMs: 10 * 1000,
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
 });
-
 app.use("/api/messages/history", messagesReadLimiter);
 
 // ============================== Rutas ===========================
@@ -418,7 +498,9 @@ const reviewRoutes = require("./routes/reviewRoutes");
 const adminAlertsRoutes = require("./routes/adminAlerts");
 
 // Healthcheck
-app.get("/health", (_req, res) => res.status(200).json({ ok: true, ts: Date.now() }));
+app.get("/health", (_req, res) =>
+  res.status(200).json({ ok: true, ts: Date.now() })
+);
 
 // API
 app.use("/api/users", userRoutes);
@@ -440,7 +522,7 @@ app.use("/api/admin/alerts", adminAlertsRoutes);
 // ========= Scheduler  =========
 initScheduler(app);
 
-// ========== Errores de celebrate (si usas celebrate en rutas) ====
+// ========== Errores de celebrate ================================
 app.use(celebrateErrors());
 
 // ====================== 404 controlado ==========================
@@ -450,14 +532,19 @@ app.use((req, res) => res.status(404).json({ error: "Not Found" }));
 app.use((err, req, res, _next) => {
   const status = err.status || 500;
   const payload =
-    status === 500 ? { error: "Internal Server Error", reqId: req.id } : { error: err.message || "Error", reqId: req.id };
+    status === 500
+      ? { error: "Internal Server Error", reqId: req.id }
+      : { error: err.message || "Error", reqId: req.id };
   if (status !== 404) {
-    console.error(`🔥 [${req.id}] ${req.method} ${req.originalUrl} -> ${status}`, err);
+    console.error(
+      `🔥 [${req.id}] ${req.method} ${req.originalUrl} -> ${status}`,
+      err
+    );
   }
   res.status(status).json(payload);
 });
 
-// ======= Endurecer Mongoose antes de conectar (ODM layer) =======
+// ======= Endurecer Mongoose antes de conectar ===================
 mongoose.set("sanitizeFilter", true);
 mongoose.set("strictQuery", true);
 
@@ -466,11 +553,17 @@ mongoose
   .connect(MONGO_URI, {
     serverSelectionTimeoutMS: 10_000,
     socketTimeoutMS: 20_000,
+    autoIndex: NODE_ENV !== "production",
   })
   .then(() => {
     server.listen(PORT, () => {
       console.log(`🚀 Backend en ${NODE_ENV} escuchando en :${PORT}`);
       console.log(`🌐 FRONTEND_ORIGIN = ${FRONTEND_ORIGIN}`);
+      console.log(
+        `🔌 SOCKET_ORIGIN = ${SOCKET_ORIGIN} | transports = ${
+          transports.join(",") || "default"
+        }`
+      );
       console.log(`🗄️ MongoDB = ${MONGO_URI}`);
     });
   })
@@ -506,16 +599,14 @@ async function gracefulShutdown(reason = "shutdown") {
   forceTimer.unref();
 
   try {
-    // 1) Cerrar Socket.IO
     try {
       const ioInstance = app.get("io");
-      if (ioInstance && typeof ioInstance.close === "function") await ioInstance.close();
+      if (ioInstance && typeof ioInstance.close === "function")
+        await ioInstance.close();
     } catch (e) {
       console.warn("⚠️ Error cerrando Socket.IO:", e?.message || e);
     }
-    // 2) Cerrar HTTP
     await closeHttpServer(server);
-    // 3) Cerrar Mongoose
     try {
       await mongoose.disconnect();
     } catch (e) {

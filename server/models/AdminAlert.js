@@ -1,3 +1,4 @@
+//models/AdminAlert.js
 const mongoose = require("mongoose");
 
 const adminAlertSchema = new mongoose.Schema(

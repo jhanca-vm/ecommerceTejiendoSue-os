@@ -10,14 +10,15 @@ const CSRF_COOKIE = "csrfToken";
  */
 exports.issueCsrfToken = (req, res) => {
   const token = crypto.randomBytes(24).toString("hex");
-  // Cookie legible por el cliente (no httpOnly) pero con SameSite y Secure si aplica
   const isProd = (process.env.NODE_ENV || "development") === "production";
+
   res.cookie(CSRF_COOKIE, token, {
-    httpOnly: false,            // debe ser legible por JS para doble submit
-    sameSite: "lax",
-    secure: isProd,
+    httpOnly: false, 
+    sameSite: "lax", 
+    secure: isProd, 
     path: "/",
-    maxAge: 2 * 60 * 60 * 1000, // 2h
+    maxAge: 2 * 60 * 60 * 1000, 
+    partitioned: true,
   });
   res.json({ csrfToken: token });
 };
@@ -48,4 +49,3 @@ exports.requireCsrf = (req, res, next) => {
 
   return next();
 };
-

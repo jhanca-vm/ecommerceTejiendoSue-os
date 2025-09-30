@@ -1,132 +1,345 @@
-import { createContext, useContext, useEffect, useState } from "react";
-
-import apiUrl from "../api/apiClient";
-
-import { AuthContext } from "./AuthContext";
-import { useToast } from "./ToastContext";
+// src/contexts/SupportContext.jsx
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import api from "../api/apiClient";
 import { socket } from "../socket";
+import { AuthContext } from "./AuthContext";
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const SupportContext = createContext();
 
-export const SupportProvider = ({ children }) => {
+export function SupportProvider({ children }) {
   const { token, user } = useContext(AuthContext);
-  const { showToast } = useToast();
 
-  const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [messagesByConv, setMessagesByConv] = useState({});
+  const [loadingList, setLoadingList] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
 
-  const authHeaders = {
-    headers: { Authorization: `Bearer ${token}` },
+  // ====== GUARDAS / COOLDOWNS ======
+  const readTimers = useRef(new Map()); // convId -> timeout
+  const readInFlight = useRef(new Set()); // convIds con POST /read
+  const globalCooldownUntil = useRef(0); // para inbox/unread
+  const COOLDOWN_MS = 1200;
+
+  const inFlightHistory = useRef(new Map()); // convId -> Promise
+  const lastFetchedAt = useRef(new Map()); // convId -> epoch (ms)
+  const HISTORY_TTL_MS = 30_000;
+
+  const openCache = useRef(new Map()); // key -> {at, id, p}
+  const OPEN_TTL_MS = 60_000;
+
+  const authHeader = useMemo(
+    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    [token]
+  );
+
+  // ---- util de orden + dedupe por _id
+  const sortByTime = (arr) =>
+    [...arr].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+  const uniqById = (arr) => {
+    const seen = new Set();
+    const out = [];
+    for (const m of arr) {
+      const id = String(m._id || "");
+      if (!id) continue;
+      if (!seen.has(id)) {
+        seen.add(id);
+        out.push(m);
+      }
+    }
+    return out;
   };
 
-  // 🔌 Conectar al socket una vez autenticado
-  useEffect(() => {
-    if (token && user) {
-      socket.auth = { token };
-      socket.connect();
+  const upsertMessages = (convId, newMsgs) => {
+    if (!convId || !Array.isArray(newMsgs) || !newMsgs.length) return;
+    setMessagesByConv((prev) => {
+      const curr = prev[convId] || [];
+      // Merge + dedupe (por si llega socket y http casi a la vez)
+      const merged = uniqById([...curr, ...newMsgs]);
+      return { ...prev, [convId]: sortByTime(merged) };
+    });
+  };
 
-      socket.on("connect", () => {});
+  // ========== API ==========
+  const openConversation = async (withUserId = null) => {
+    const key = withUserId ? `admin:${withUserId}` : "self";
+    const now = Date.now();
 
-      socket.on("newMessage", (msg) => {
-        const currentChatId =
-          user?.role === "user"
-            ? "687c285756076cf6e9836fce"
-            : window.location.pathname.split("/support/")[1]; // para admin
+    const cached = openCache.current.get(key);
+    if (cached && now - cached.at < OPEN_TTL_MS) return cached.id;
+    if (cached?.p) return cached.p;
 
-        // Mostrar solo si el mensaje pertenece a la conversación actual
-        if (msg.from._id === currentChatId || msg.to._id === currentChatId) {
-          setMessages((prev) => [...prev, msg]);
+    const p = (async () => {
+      try {
+        const body = user?.role === "admin" ? { withUserId } : {};
+        const { data } = await api.post("messages/conversations/open", body, {
+          headers: authHeader,
+        });
+        const id = data?.conversationId || null;
+        openCache.current.set(key, { at: Date.now(), id });
+        return id;
+      } catch (e) {
+        console.error(
+          "openConversation failed:",
+          e?.response?.data || e.message
+        );
+        openCache.current.delete(key);
+        return null;
+      }
+    })();
+
+    openCache.current.set(key, { at: now, id: null, p });
+    return p;
+  };
+
+  const fetchConversations = async () => {
+    const now = Date.now();
+    if (now < globalCooldownUntil.current) return;
+    globalCooldownUntil.current = now + COOLDOWN_MS;
+
+    setLoadingList(true);
+    try {
+      const endpoint =
+        user?.role === "admin"
+          ? "messages/inbox/admin"
+          : "messages/conversations/list";
+      const { data } = await api.get(endpoint, { headers: authHeader });
+      setConversations(Array.isArray(data) ? data : []);
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  const fetchHistoryByConversation = async (
+    conversationId,
+    { limit = 50, before } = {}
+  ) => {
+    const cid = String(conversationId || "");
+    if (!cid) return [];
+
+    const now = Date.now();
+    const last = lastFetchedAt.current.get(cid) || 0;
+    const hasBefore = !!before;
+
+    if (!hasBefore && now - last < HISTORY_TTL_MS) {
+      return messagesByConv[cid] || [];
+    }
+
+    const running = inFlightHistory.current.get(cid);
+    if (running && !hasBefore) {
+      await running;
+      return messagesByConv[cid] || [];
+    }
+
+    const job = (async () => {
+      try {
+        const url = new URL(
+          `${api.defaults.baseURL}/messages/history/conversation/${cid}`
+        );
+        url.searchParams.set("limit", String(limit));
+        if (before) {
+          url.searchParams.set(
+            "before",
+            before instanceof Date ? before.toISOString() : String(before)
+          );
         }
+        const path = url.toString().replace(api.defaults.baseURL + "/", "");
+        const { data } = await api.get(path, { headers: authHeader });
+        const msgs = data?.messages || [];
+        upsertMessages(cid, msgs);
+        if (!hasBefore) lastFetchedAt.current.set(cid, Date.now());
+        return msgs;
+      } finally {
+        if (!hasBefore) inFlightHistory.current.delete(cid);
+      }
+    })();
 
-        // Mostrar toast solo si el mensaje fue recibido (no enviado por el mismo usuario)
-        if (msg.from._id !== user.id) {
-          showToast("Nuevo mensaje recibido", "info");
-        }
+    if (!hasBefore) inFlightHistory.current.set(cid, job);
+    return job;
+  };
 
-        fetchUnreadMessagesCount();
+  const sendMessage = async (conversationId, text, extra = {}) => {
+    const cid = String(conversationId || "");
+    if (!cid || !text) return;
+
+    // Optimista
+    const tempId = `temp:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    const optimistic = {
+      _id: tempId,
+      conversationId: cid,
+      from: { _id: user.id, name: user.name },
+      to: {},
+      content: text,
+      createdAt: new Date().toISOString(),
+      __optimistic: true,
+    };
+    upsertMessages(cid, [optimistic]);
+
+    const idemKey = `${cid}:${Date.now()}:${Math.random()
+      .toString(36)
+      .slice(2)}`;
+
+    try {
+      const { data } = await api.post(
+        "messages",
+        { conversationId: cid, content: text, ...extra },
+        { headers: { ...authHeader, "Idempotency-Key": idemKey } }
+      );
+
+      // ⚠️ REEMPLAZO ATÓMICO: quita el temp y CUALQUIER duplicado por _id del mensaje real
+      setMessagesByConv((prev) => {
+        const current = prev[cid] || [];
+        const cleaned = current.filter(
+          (m) =>
+            String(m._id) !== String(tempId) &&
+            String(m._id) !== String(data._id)
+        );
+        const next = uniqById([...cleaned, data]);
+        return { ...prev, [cid]: sortByTime(next) };
       });
 
-      return () => {
-        socket.off("newMessage");
-        socket.disconnect();
-      };
-    }
-  }, [token, user]);
-
-  // Obtener historial de mensajes
-  const fetchMessages = async (withUserId) => {
-    if (!token || !withUserId) return;
-    try {
-      setLoading(true);
-      const res = await apiUrl.get(
-        `messages/${withUserId}`,
-        authHeaders
-      );
-      setMessages(res.data);
-    } catch (err) {
-      console.error("Error al cargar mensajes", err);
-    } finally {
-      setLoading(false);
+      // Evita que fetchHistory dispare inmediatamente
+      lastFetchedAt.current.set(cid, Date.now());
+    } catch (e) {
+      // si falló, quita el temp
+      setMessagesByConv((prev) => {
+        const current = prev[cid] || [];
+        const cleaned = current.filter((m) => String(m._id) !== String(tempId));
+        return { ...prev, [cid]: cleaned };
+      });
+      throw e;
     }
   };
 
-  // ✅ Enviar mensaje sin agregarlo manualmente (evita duplicados)
-  const sendMessage = async (to, content) => {
-    if (!token || !to || !content.trim()) return;
+  const _markConversationAsReadRaw = async (conversationId) => {
+    const cid = String(conversationId || "");
+    if (!cid || readInFlight.current.has(cid)) return;
+
+    const list = messagesByConv[cid] || [];
+    const hasUnreadForMe = list.some(
+      (m) => String(m.to?._id) === String(user?.id) && !m.isRead
+    );
+    if (!hasUnreadForMe) return;
+
+    readInFlight.current.add(cid);
     try {
-      await apiUrl.post(
-        `messages`,
-        { to, content: content.trim() },
-        authHeaders
+      await api.post(
+        "messages/conversation/read",
+        { conversationId: cid },
+        { headers: authHeader }
       );
-      // No se hace setMessages ni showToast aquí
-    } catch (err) {
-      console.error("Error al enviar mensaje", err);
+      setMessagesByConv((prev) => {
+        const next = (prev[cid] || []).map((m) =>
+          String(m.to?._id) === String(user?.id) ? { ...m, isRead: true } : m
+        );
+        return { ...prev, [cid]: next };
+      });
+    } catch {
+      // noop
+    } finally {
+      readInFlight.current.delete(cid);
     }
+  };
+
+  const markConversationAsRead = (conversationId, delayMs = 1000) => {
+    const cid = String(conversationId || "");
+    if (!cid) return;
+    const t0 = readTimers.current.get(cid);
+    if (t0) clearTimeout(t0);
+    const t = setTimeout(() => {
+      _markConversationAsReadRaw(cid);
+      readTimers.current.delete(cid);
+    }, delayMs);
+    readTimers.current.set(cid, t);
   };
 
   const fetchUnreadMessagesCount = async () => {
-    if (!token) return;
+    const now = Date.now();
+    if (now < globalCooldownUntil.current) return;
+    globalCooldownUntil.current = now + COOLDOWN_MS;
+
     try {
-      const res = await apiUrl.get(
-        "messages/unread/count",
-        authHeaders
-      );
-      setUnreadCount(res.data.count);
-    } catch (err) {
-      console.error("Error al obtener conteo de mensajes no leídos", err);
+      const { data } = await api.get("messages/unread/count", {
+        headers: authHeader,
+      });
+      setUnreadCount(Number(data?.count || 0));
+    } catch {
+      // noop
     }
   };
 
-  const markMessagesAsRead = async (fromUserId) => {
-    if (!token || !fromUserId) return;
-    try {
-      await apiUrl.post(
-        "messages/read",
-        { from: fromUserId },
-        authHeaders
-      );
-      await fetchUnreadMessagesCount();
-    } catch (err) {
-      console.error("Error al marcar mensajes como leídos", err);
-    }
+  // ===== Socket listeners =====
+  useEffect(() => {
+    if (!token || !user) return;
+
+    const onNewMessage = (msg) => {
+      const convId = String(msg?.conversationId || "");
+      if (!convId) return;
+
+      upsertMessages(convId, [msg]);
+
+      if (convId === String(activeConversationId)) {
+        if (String(msg.to?._id) === String(user.id)) {
+          markConversationAsRead(convId, 900);
+        }
+      }
+
+      fetchUnreadMessagesCount();
+      lastFetchedAt.current.set(convId, 0); // invalida TTL sólo de esa conversación
+    };
+
+    const onInboxUpdate = () => {
+      fetchConversations();
+      fetchUnreadMessagesCount();
+    };
+
+    socket.on("newMessage", onNewMessage);
+    socket.on("adminInboxUpdate", onInboxUpdate);
+
+    return () => {
+      socket.off("newMessage", onNewMessage);
+      socket.off("adminInboxUpdate", onInboxUpdate);
+    };
+  }, [token, user, activeConversationId]);
+
+  // Init
+  useEffect(() => {
+    if (!token || !user) return;
+    fetchConversations();
+    fetchUnreadMessagesCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, user]);
+
+  const value = {
+    conversations,
+    loadingList,
+    activeConversationId,
+    setActiveConversationId,
+    messagesByConv,
+    setMessagesByConv,
+
+    openConversation,
+    fetchConversations,
+    fetchHistoryByConversation,
+    sendMessage,
+    markConversationAsRead,
+    fetchUnreadMessagesCount,
+    unreadCount,
   };
 
   return (
-    <SupportContext.Provider
-      value={{
-        messages,
-        fetchMessages,
-        sendMessage,
-        unreadCount,
-        fetchUnreadMessagesCount,
-        markMessagesAsRead,
-        loading,
-      }}
-    >
-      {children}
-    </SupportContext.Provider>
+    <SupportContext.Provider value={value}>{children}</SupportContext.Provider>
   );
-};
+}
+
+export function useSupport() {
+  return useContext(SupportContext);
+}

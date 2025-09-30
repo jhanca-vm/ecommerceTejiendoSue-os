@@ -50,12 +50,13 @@ import AdminAlertsPage from "./pages/admin/products/AdminAlertsPage";
 
 /* Soporte y varias */
 import SupportChatPage from "./pages/SupportChatPage";
+import SupportDeskPage from "./pages/SupportDeskPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import SlowPage from "./routes/SlowPage";
 
 async function seedCsrf() {
   try {
-    const { data } = await api.get("/csrf", { __internal: true }); 
+    const { data } = await api.get("/csrf", { __internal: true });
     if (data?.csrfToken) setCsrfToken(data.csrfToken);
   } catch (e) {
     console.warn("No se pudo inicializar CSRF", e?.message || e);
@@ -114,6 +115,7 @@ function AppShell() {
 
           {/* Privadas usuario */}
           <Route element={<PrivateRoute allowedRoles={["user"]} />}>
+            <Route path="/support" element={<SupportChatPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/my-orders" element={<MyOrders />} />
             <Route path="/product/:id" element={<ProductDetailPage />} />
@@ -139,8 +141,8 @@ function AppShell() {
               path="/admin/products/edit/:id"
               element={<EditProductPage />}
             />
-            <Route path="/support/:withUserId" element={<SupportChatPage />} />
-            <Route path="/admin/inbox" element={<AdminInboxPage />} />
+            <Route path="/admin/inbox" element={<SupportDeskPage />} />
+            {/*<Route path="/admin/support-desk" element={<SupportDeskPage />} />*/}
             <Route path="/admin/categories" element={<AdminCategoryPage />} />
             <Route path="/admin/sizes" element={<AdminSizesPage />} />
             <Route path="/admin/colors" element={<AdminColorsPage />} />
@@ -157,11 +159,6 @@ function AppShell() {
               }
             />
             <Route path="/admin/alerts" element={<AdminAlertsPage />} />
-          </Route>
-
-          {/* Soporte compartido */}
-          <Route element={<PrivateRoute allowedRoles={["user", "admin"]} />}>
-            <Route path="/support" element={<SupportChatPage />} />
           </Route>
 
           {/* 404 */}

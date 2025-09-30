@@ -1,7 +1,5 @@
 import { useEffect, useState, useContext } from "react";
-
 import apiUrl from "../api/apiClient";
-
 import { AuthContext } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { socket } from "../socket";
@@ -20,12 +18,9 @@ const AdminInboxPage = () => {
   const fetchInbox = async () => {
     setLoading(true);
     try {
-      const res = await apiUrl.get(
-        "messages/inbox/admin",
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await apiUrl.get("messages/inbox/admin", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setUsers(res.data);
     } catch (err) {
       console.error("Error al cargar el inbox", err);
@@ -48,17 +43,16 @@ const AdminInboxPage = () => {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchInbox();
-      socket.on("adminInboxUpdate", fetchInbox);
-      return () => socket.off("adminInboxUpdate");
-    }
+    if (!token) return;
+    fetchInbox();
+    socket.on("adminInboxUpdate", fetchInbox);
+    return () => socket.off("adminInboxUpdate", fetchInbox);
   }, [token]);
 
   const filteredUsers = users.filter((u) => {
     const searchMatch =
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase());
+      (u.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.email || "").toLowerCase().includes(searchTerm.toLowerCase());
     const filterMatch =
       filter === "all" ||
       (filter === "unread" && u.unread) ||
@@ -73,36 +67,45 @@ const AdminInboxPage = () => {
   );
 
   const handlePageChange = (direction) => {
-    if (direction === "prev" && currentPage > 1) {
+    if (direction === "prev" && currentPage > 1)
       setCurrentPage(currentPage - 1);
-    } else if (direction === "next" && currentPage < totalPages) {
+    else if (direction === "next" && currentPage < totalPages)
       setCurrentPage(currentPage + 1);
-    }
   };
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, filter]);
+  useEffect(() => setCurrentPage(1), [searchTerm, filter]);
 
   return (
     <div className="admin-inbox-container">
       <h2>📨 Conversaciones de Soporte</h2>
 
-      <div className="inbox-controls" style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+      <div
+        className="inbox-controls"
+        style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}
+      >
         <input
           type="text"
           placeholder="Buscar por nombre o correo..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="search-input"
-          style={{ flex: 2, padding: "0.4rem", border: "1px solid #ccc", borderRadius: "4px" }}
+          style={{
+            flex: 2,
+            padding: "0.4rem",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+          }}
         />
-
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="filter-select"
-          style={{ flex: 1, padding: "0.4rem", border: "1px solid #ccc", borderRadius: "4px" }}
+          style={{
+            flex: 1,
+            padding: "0.4rem",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+          }}
         >
           <option value="all">Todos</option>
           <option value="unread">No leídos</option>
@@ -121,19 +124,29 @@ const AdminInboxPage = () => {
               <li key={u._id} className="inbox-item">
                 <button
                   className="inbox-button"
-                  onClick={() => navigate(`/support/${u._id}`)}
+                  onClick={() => {
+                    if (u.conversationId)
+                      navigate(`/support-desk?c=${u.conversationId}`);
+                  }}
                 >
                   <div className="user-info">
                     <div className="user-header">
                       <span className="user-name">{u.name}</span>
                       {u.unread && (
-                        <span className="unread-dot" style={{ marginLeft: "0.5rem", color: "#ff9800" }}>
+                        <span
+                          className="unread-dot"
+                          style={{ marginLeft: "0.5rem", color: "#ff9800" }}
+                        >
                           ● Nuevo
                         </span>
                       )}
                       {u.lastMessageTime && (
-                        <span className="timestamp" style={{ marginLeft: "auto" }}>
-                          🕓 {new Date(u.lastMessageTime).toLocaleString("es-CO", {
+                        <span
+                          className="timestamp"
+                          style={{ marginLeft: "auto" }}
+                        >
+                          🕓{" "}
+                          {new Date(u.lastMessageTime).toLocaleString("es-CO", {
                             hour: "2-digit",
                             minute: "2-digit",
                             day: "2-digit",
@@ -166,7 +179,14 @@ const AdminInboxPage = () => {
             ))}
           </ul>
 
-          <div style={{ display: "flex", justifyContent: "center", marginTop: "1rem", gap: "1rem" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              marginTop: "1rem",
+              gap: "1rem",
+            }}
+          >
             <button
               onClick={() => handlePageChange("prev")}
               disabled={currentPage === 1}
@@ -175,7 +195,8 @@ const AdminInboxPage = () => {
               ← Anterior
             </button>
             <span>
-              Página {currentPage} de {totalPages}
+              {" "}
+              Página {currentPage} de {totalPages}{" "}
             </span>
             <button
               onClick={() => handlePageChange("next")}

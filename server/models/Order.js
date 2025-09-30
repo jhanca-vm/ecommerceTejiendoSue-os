@@ -1,3 +1,4 @@
+//models/Order.js
 const mongoose = require("mongoose");
 
 const shippingInfoSchema = new mongoose.Schema(

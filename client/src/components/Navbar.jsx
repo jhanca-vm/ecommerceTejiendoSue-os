@@ -343,8 +343,9 @@ const Navbar = () => {
     : "/login";
 
   const isSupportActive =
-    isMatch(location.pathname, /^\/support(\/|$)/) ||
-    isMatch(location.pathname, /^\/admin\/inbox(\/|$)/);
+    isMatch(location.pathname, /^\/support(\/|$)/) ||        
+   isMatch(location.pathname, /^\/admin\/inbox(\/|$)/) ||   
+   isMatch(location.pathname, /^\/support-desk(\/|$)/); 
 
   const isAlertsActive = isMatch(location.pathname, /^\/admin\/alerts(\/|$)/);
 

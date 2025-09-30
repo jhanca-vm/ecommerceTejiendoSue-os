@@ -1,116 +1,74 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import LoaderOverlay from "../blocks/LoaderOverlay";
-import { cancelAllActiveRequests } from "../api/apiClient";
+import { useEffect, useRef } from "react";
+import axios from "axios";
+import api from "../api/apiClient"; 
+import { useToast } from "../contexts/ToastContext";
 
-export default function GlobalHttpHandler({
-  showOnRouteChange = true,
-  routeMinMs = 300,
-  routeMaxMs = 1200,
-}) {
-  const [pending, setPending] = useState(0);
-  const [visible, setVisible] = useState(false);
-  const [routeSpin, setRouteSpin] = useState(false);
+/**
+ * Monta interceptores globales de axios una sola vez.
+ * Evita setState en cada render y previene bucles.
+ */
+export default function GlobalHttpHandler() {
+  const { showToast } = useToast();
+  const mountedRef = useRef(false);
+  const installingRef = useRef(false);
+  const interceptorsRef = useRef({ req: null, res: null });
+  const lastErrorKeyRef = useRef("");
 
-  const showDelayRef = useRef(null);
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  // ---- Overlay por HTTP con delay anti-parpadeo (250ms)
-  const ensureShow = () => {
-    if (visible || showDelayRef.current) return;
-    showDelayRef.current = setTimeout(() => {
-      setVisible(true);
-      showDelayRef.current = null;
-    }, 250);
-  };
-  const ensureHide = () => {
-    if (showDelayRef.current) {
-      clearTimeout(showDelayRef.current);
-      showDelayRef.current = null;
-    }
-    setVisible(false);
-  };
-
-  // Eventos provenientes de apiCliente (http:start/stop/slow/flush)
   useEffect(() => {
-    const onStart = () => {
-      setPending((p) => p + 1);
-      ensureShow();
-    };
-    const onStop = () => {
-      setPending((p) => Math.max(0, p - 1));
-    };
-    const onSlow = (e) => {
-      const d = e?.detail || {};
-      // 🔹 Ignora internos o sin datos mínimos
-      if (d.internal || !d.url || !d.method) return;
+    if (mountedRef.current || installingRef.current) return;
+    installingRef.current = true;
 
-      if (location.pathname !== "/status/slow") {
-        // 🔹 Pasa solo un subconjunto “clonable”
-        const state = {
-          id: d.id,
-          url: d.url,
-          method: d.method,
-          startedAt: d.startedAt,
-          elapsed: d.elapsed,
-          status: d.status,
-        };
-        navigate("/status/slow", { state, replace: false });
+    // Request interceptor (opcional)
+    const req = api.interceptors.request.use(
+      (cfg) => cfg,
+      (err) => Promise.reject(err)
+    );
+
+    // Response interceptor
+    const res = api.interceptors.response.use(
+      (resp) => resp,
+      (error) => {
+        // Evita loops y repeticiones de toast idénticos
+        if (!axios.isCancel(error)) {
+          const status = error?.response?.status;
+          // Mensaje “clave” para deduplicación
+          const key = `${status}:${error?.config?.url || ""}`;
+          if (key !== lastErrorKeyRef.current) {
+            lastErrorKeyRef.current = key;
+            if (status >= 500) {
+              showToast({
+                type: "error",
+                message: "Error del servidor. Intenta nuevamente.",
+              });
+            } else if (status === 401) {
+              // no spamear el toast en renovaciones automáticas
+            } else if (status === 429) {
+              showToast({
+                type: "warning",
+                message: "Demasiadas solicitudes. Espera un momento.",
+              });
+            }
+            // Limpia la clave después de un breve tiempo
+            setTimeout(() => {
+              if (lastErrorKeyRef.current === key) lastErrorKeyRef.current = "";
+            }, 1500);
+          }
+        }
+        return Promise.reject(error);
       }
-    };
-    const onFlush = () => {
-      setPending(0);
-      ensureHide();
-    };
+    );
 
-    window.addEventListener("http:start", onStart);
-    window.addEventListener("http:stop", onStop);
-    window.addEventListener("http:slow", onSlow);
-    window.addEventListener("http:flush", onFlush);
-    return () => {
-      window.removeEventListener("http:start", onStart);
-      window.removeEventListener("http:stop", onStop);
-      window.removeEventListener("http:slow", onSlow);
-      window.removeEventListener("http:flush", onFlush);
-    };
-  }, [location.pathname, navigate]);
-
-  // Si no hay pendientes, ocultar overlay HTTP
-  useEffect(() => {
-    if (pending <= 0) ensureHide();
-  }, [pending]);
-
-  // ---- Overlay inmediato en CAMBIO DE RUTA (antes del paint)
-  useLayoutEffect(() => {
-    // Siempre cancelamos requests colgando
-    cancelAllActiveRequests();
-    setPending(0);
-    ensureHide();
-
-    if (!showOnRouteChange) return;
-
-    // Mostramos overlay *YA* (previo al primer paint de la nueva ruta)
-    setRouteSpin(true);
-
-    // Asegura un mínimo visible para no parpadear
-    const min = setTimeout(() => setRouteSpin((v) => v && false), routeMinMs);
-    // Y un máximo por seguridad
-    const max = setTimeout(() => setRouteSpin(false), routeMaxMs);
+    interceptorsRef.current = { req, res };
+    mountedRef.current = true;
+    installingRef.current = false;
 
     return () => {
-      clearTimeout(min);
-      clearTimeout(max);
-      setRouteSpin(false);
+      const { req: reqId, res: resId } = interceptorsRef.current || {};
+      if (reqId != null) api.interceptors.request.eject(reqId);
+      if (resId != null) api.interceptors.response.eject(resId);
+      mountedRef.current = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  }, []);
 
-  // Si entran requests reales, dejamos que el overlay-HTTP tome el control
-  useEffect(() => {
-    if (pending > 0 && routeSpin) setRouteSpin(false);
-  }, [pending, routeSpin]);
-
-  const show = visible || routeSpin;
-  return <LoaderOverlay visible={show} pending={pending} />;
+  return null;
 }

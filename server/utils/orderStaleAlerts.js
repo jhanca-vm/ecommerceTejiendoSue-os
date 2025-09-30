@@ -1,3 +1,4 @@
+//utils/orderStaleAlerts.js
 const AdminAlert = require("../models/AdminAlert");
 const Order = require("../models/Order");
 
@@ -28,7 +29,11 @@ async function lastStaleAlertAt(orderId, status) {
 }
 
 async function emitOrderStaleAlert(order, status, io) {
-  const msg = `Pedido #${String(order._id).slice(-8).toUpperCase()} estancado en estado "${status}" desde ${new Date(order.currentStatusAt).toLocaleString()}.`;
+  const msg = `Pedido #${String(order._id)
+    .slice(-8)
+    .toUpperCase()} estancado en estado "${status}" desde ${new Date(
+    order.currentStatusAt
+  ).toLocaleString()}.`;
 
   const alert = await AdminAlert.create({
     type: "ORDER_STALE_STATUS",
@@ -54,10 +59,9 @@ async function emitOrderStaleAlert(order, status, io) {
 
 async function checkStaleOrders({ io } = {}) {
   const now = Date.now();
-  const candidates = await Order.find(
-    { status: { $in: WATCH_STATUSES } },
-    { status: 1, currentStatusAt: 1 }
-  )
+  const candidates = await Order.find({}, { status: 1, currentStatusAt: 1 })
+    .where("status")
+    .in(WATCH_STATUSES)
     .sort({ currentStatusAt: 1 })
     .lean();
 

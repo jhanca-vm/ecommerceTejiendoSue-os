@@ -4,19 +4,53 @@ const jwt = require("jsonwebtoken");
 const validator = require("validator");
 const { sendVerificationEmail, sendResetEmail } = require("../utils/sendEmail");
 
-// ====== Config por ENV (fallbacks sensatos) ======
-const ACCESS_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "30m";
-const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
+// ===== Helpers JWT endurecidos (alg/iss/aud coherentes con middleware/auth) =====
+const ALG = process.env.JWT_ALG || "HS256";
+const ISS = process.env.JWT_ISS || undefined; // p.ej. "tejiendo-suenos"
+const AUD = process.env.JWT_AUD || undefined; // p.ej. "ts-web"
 
-// Util de cookie para refresh (dev/prod)
+function signAccessToken(user) {
+  const payload = {
+    id: String(user._id),
+    role: user.role,
+    isVerified: !!user.isVerified,
+    email: user.email,
+  };
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    algorithm: ALG,
+    issuer: ISS,
+    audience: AUD,
+    expiresIn: "15m",
+  });
+}
+
+function signRefreshToken(user) {
+  const payload = { sub: String(user._id), type: "refresh" };
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
+    algorithm: ALG,
+    issuer: ISS,
+    audience: AUD,
+    expiresIn: "30d",
+  });
+}
+
+function verifyRefresh(token) {
+  return jwt.verify(token, process.env.JWT_REFRESH_SECRET, {
+    algorithms: [ALG],
+    issuer: ISS,
+    audience: AUD,
+  });
+}
+
+// ===== Cookies para refresh (dev/prod) =====
 function refreshCookieOptions() {
   const isProd = process.env.NODE_ENV === "production";
   return {
     httpOnly: true,
     secure: isProd,
     sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: "/", // usa "/" si en dev te resulta más simple; debe coincidir en clearCookie
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días, consistente con el refresh
+    path: "/", // debe coincidir en clearCookie
   };
 }
 
@@ -26,24 +60,13 @@ function clearRefreshCookie(res) {
     httpOnly: true,
     sameSite: opts.sameSite,
     secure: opts.secure,
-    path: "/", // igual que setCookie
+    path: "/",
   });
 }
 
-// ====== Funciones para tokens ======
-const createAccessToken = (user) =>
-  jwt.sign(
-    { id: user._id, role: user.role, isVerified: !!user.isVerified },
-    process.env.JWT_SECRET,
-    { expiresIn: ACCESS_EXPIRES_IN }
-  );
-
-const createRefreshToken = (user) =>
-  jwt.sign({ id: user._id, use: "refresh" }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: REFRESH_EXPIRES_IN,
-  });
-
-// ====== Registro ======
+/* =========================
+ *  Registro
+ * ========================= */
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -70,23 +93,28 @@ exports.register = async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({ error: "El correo ya está registrado" });
     }
 
-    // Crear el usuario
-    const user = await User.create({ name, email, password });
+    // Crear usuario
+    const user = await User.create({
+      name,
+      email: email.toLowerCase(),
+      password,
+    });
 
-    const accessToken = createAccessToken(user);
-    const refreshToken = createRefreshToken(user);
+    // Firmar tokens endurecidos
+    const accessToken = signAccessToken(user);
+    const refreshToken = signRefreshToken(user);
 
+    // Persistir refresh en BD y cookie httpOnly
     user.refreshToken = refreshToken;
     await user.save();
-
     res.cookie("refreshToken", refreshToken, refreshCookieOptions());
 
-    // ====== Enviar correo de verificación ======
+    // Enviar correo de verificación (si está configurado)
     if (!process.env.JWT_EMAIL_SECRET) {
       console.error("Falta JWT_EMAIL_SECRET en el .env");
     } else {
@@ -109,6 +137,7 @@ exports.register = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        isVerified: user.isVerified,
       },
     });
   } catch (err) {
@@ -117,34 +146,35 @@ exports.register = async (req, res) => {
   }
 };
 
-// ====== Login ======
+/* =========================
+ *  Login
+ * ========================= */
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!validator.isEmail(email)) {
+    if (!validator.isEmail(email || "")) {
       // respuesta neutra
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    // Busca usuario
     const user = await User.findOne({ email: email.toLowerCase() }).select(
       "+password"
     );
 
-    // Defensa básica anti-enumeración/tiempo:
-    // si no hay usuario, hacemos un compare contra un hash dummy para no filtrar timing.
+    // Defensa básica anti-enumeración por tiempo:
     const dummyHash =
-      "$2a$10$J0uI6VVuC1mI9D0uQ5G8kO2b1wz2mLwZ2m0gQ5P1l6e8o8dFJtGKm"; // "dummyPass" hash
+      "$2a$10$J0uI6VVuC1mI9D0uQ5G8kO2b1wz2mLwZ2m0gQ5P1l6e8o8dFJtGKm";
     const hashToCheck = user ? user.password : dummyHash;
 
-    const match = await bcrypt.compare(password, hashToCheck);
+    const match = await bcrypt.compare(password || "", hashToCheck);
     if (!user || !match) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    const accessToken = createAccessToken(user);
-    const refreshToken = createRefreshToken(user);
+    // Tokens endurecidos
+    const accessToken = signAccessToken(user);
+    const refreshToken = signRefreshToken(user);
 
     user.refreshToken = refreshToken;
     user.lastLoginAt = new Date();
@@ -168,7 +198,9 @@ exports.login = async (req, res) => {
   }
 };
 
-/* ====== Logout ====== */
+/* =========================
+ *  Logout
+ * ========================= */
 exports.logout = async (req, res) => {
   try {
     const token = req.cookies.refreshToken;
@@ -181,21 +213,16 @@ exports.logout = async (req, res) => {
       }
     }
 
-    const opts = refreshCookieOptions();
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      sameSite: opts.sameSite,
-      secure: opts.secure,
-      path: "/", // 👈 igual que en setCookie
-    });
-
+    clearRefreshCookie(res);
     return res.status(200).json({ message: "Sesión cerrada correctamente" });
   } catch (err) {
     return res.status(500).json({ error: "Error al cerrar sesión" });
   }
 };
 
-// ====== Refrescar token ======
+/* =========================
+ *  Refresh token
+ * ========================= */
 exports.refreshToken = async (req, res) => {
   try {
     const token = req.cookies.refreshToken;
@@ -203,25 +230,27 @@ exports.refreshToken = async (req, res) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+      decoded = verifyRefresh(token); // ⬅️ usa verificación endurecida (alg/iss/aud)
     } catch {
       return res.status(401).json({ error: "Refresh inválido o expirado" });
     }
 
-    const user = await User.findById(decoded.id).select(
+    // compat: usamos decoded.sub (nuevo) y caemos a decoded.id si fuese un token antiguo
+    const uid = decoded.sub || decoded.id;
+    if (!uid) return res.status(401).json({ error: "Refresh inválido" });
+
+    const user = await User.findById(uid).select(
       "_id name email role isVerified refreshToken"
     );
     if (!user) return res.status(401).json({ error: "Refresh inválido" });
 
-    // Importante: compara contra el almacenado (anti-replay)
+    // Anti-replay: debe coincidir con el guardado
     if (!user.refreshToken || user.refreshToken !== token) {
       return res.status(401).json({ error: "Refresh inválido" });
     }
 
-    // ⚠️ NO rotamos aquí para evitar condiciones de carrera
-    // res.cookie("refreshToken", token, refreshCookieOptions());  // opcional: reestablecer mismas flags
-
-    const access = createAccessToken(user);
+    // Emitimos nuevo access token endurecido
+    const access = signAccessToken(user);
     res.json({
       token: access,
       user: {
@@ -229,6 +258,7 @@ exports.refreshToken = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        isVerified: user.isVerified,
       },
     });
   } catch (err) {

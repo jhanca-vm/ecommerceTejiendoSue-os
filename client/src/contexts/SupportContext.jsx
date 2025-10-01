@@ -1,14 +1,8 @@
-// src/contexts/SupportContext.jsx
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import api from "../api/apiClient";
-import { socket } from "../socket";
+// src/contexts/SupportContext
+import { createContext, useContext, useEffect, useState } from "react";
+
+import apiUrl from "../api/apiClient";
+
 import { AuthContext } from "./AuthContext";
 
 export const SupportContext = createContext();

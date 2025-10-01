@@ -1,9 +1,7 @@
+// src/pages/AdminDashboard
 import { useEffect, useMemo, useState, useContext } from "react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import dayjs from "dayjs";
 
 import apiUrl from "../api/apiClient";
 
@@ -13,7 +11,11 @@ import FilterExportControls from "../blocks/admin/FilterExportControls";
 import OrderCardBlock from "../blocks/admin/OrderCardBlock";
 import { formatCOP } from "../utils/currency";
 
-import logo from "../assets/PPFINAL.png";
+// importes para pdf
+import { generatePdf } from "../exports/pdfReportEngine";
+import ordersReportSchema from "../exports/schemas/ordersReport";
+import dayjs from "dayjs";
+import logo from "../assets/manos.png";
 
 const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
   const { token } = useContext(AuthContext);
@@ -146,81 +148,63 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         0
     );
 
+  // Exportar PDF
   const exportToPDF = () => {
     if (dateError) return alert(dateError);
 
-    const doc = new jsPDF("landscape");
-    doc.addImage(logo, "PNG", 14, 10, 30, 15);
-    doc.setFontSize(18);
-    doc.setTextColor(40);
-    doc.text("Reporte de Pedidos", 14, 30);
-    doc.line(14, 32, 285, 32);
-
+    // 1) Normalizar datos -> contrato esperado por el esquema
     const rows = filteredOrders.flatMap((order) =>
-      (order.items || []).map((item) => [
-        order.user?.name || "N/A",
-        order.user?.email || "N/A",
-        dayjs(order.createdAt).format("YYYY-MM-DD HH:mm"),
-        dayjs(order.currentStatusAt || order.updatedAt).format(
-          "YYYY-MM-DD HH:mm"
-        ), // <-- nuevo campo
-        item.product?.name || "Eliminado",
-        item.size?.label || "-",
-        item.color?.name || "-",
-        item.quantity,
-        formatCOP(getUnit(item)),
-        formatCOP(order.total ?? 0),
-        order.status,
-      ])
+      (order.items || []).map((item) => ({
+        createdAt: dayjs(order.createdAt).format("YYYY-MM-DD HH:mm"),
+        pedido: `${order._id.slice(-8).toUpperCase()}` || "N/A",
+        userEmail: order.user?.email || "N/A",
+        product: item.product?.name || "Eliminado",
+        size: item.size?.label || "-",
+        color: item.color?.name || "-",
+        qty: String(item.quantity ?? 0),
+        unitPrice: String(
+          formatCOP(
+            Number(
+              item?.unitPrice ??
+                item?.product?.effectivePrice ??
+                item?.product?.price ??
+                0
+            )
+          )
+        ),
+        total: String(formatCOP(Number(order.total ?? 0))),
+        status: order.status || "",
+      }))
     );
 
-    autoTable(doc, {
-      startY: 36,
-      head: [
-        [
-          "Usuario",
-          "Email",
-          "Creado",
-          "Fecha estado actual",
-          "Producto",
-          "Talla",
-          "Color",
-          "Cantidad",
-          "Precio",
-          "Total",
-          "Estado",
-        ],
-      ],
-      body: rows,
-      styles: { fontSize: 8, cellPadding: 2, overflow: "linebreak" },
-      headStyles: {
-        fillColor: [122, 62, 21],
-        textColor: 255,
-        halign: "center",
-      },
-      columnStyles: {
-        0: { cellWidth: 30 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 35 },
-        3: { cellWidth: 40 },
-      },
-      didDrawPage: (data) => {
-        const pageHeight = doc.internal.pageSize.height;
-        doc.setFontSize(10);
-        doc.text(
-          `Página ${doc.internal.getNumberOfPages()}`,
-          data.settings.margin.left,
-          pageHeight - 10
-        );
-      },
-    });
-
+    // 2) Meta (encabezado y footer estándar)
     const friendlyName = (searchFilter || statusFilter || "todos").replace(
       /\s+/g,
       "_"
     );
     const today = dayjs().format("YYYY-MM-DD");
-    doc.save(`pedidos_${friendlyName}_${today}.pdf`);
+
+    const meta = {
+      reportName: "Reporte de Pedidos",
+      ecommerceName: "Tejiendo Sueños",
+      printedAt: new Date(),
+      timezoneLabel: "Sandoná/Nariño",
+      otrosDatos:
+        "Dirección: Sandoná, Nariño\nTeléfono: +57 3xx xxx xxxx\nEmail: contacto@tejiendosuenos.co",
+      logo,
+      fileName: `pedidos_${friendlyName}_${today}.pdf`,
+    };
+
+    // 3) Theme opcional (si quieres retocar colores globales)
+    const theme = {};
+
+    // 4) Generar PDF (portrait) con límite de 10 filas
+    generatePdf({
+      schema: ordersReportSchema,
+      rows,
+      meta,
+      theme,
+    });
   };
 
   const exportToExcel = () => {

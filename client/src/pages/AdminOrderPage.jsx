@@ -1,12 +1,16 @@
+// src/pages/AdminOrderPage
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
 import apiUrl from "../api/apiClient";
-
-import { AuthContext } from "../contexts/AuthContext";
 import { formatCOP } from "../utils/currency";
+
+// importes para pdf
+import { generatePdf } from "../exports/pdfReportEngine";
+import salesHistorySchema from "../exports/schemas/salesHistory";
+import dayjs from "dayjs";
+import logo from "../assets/manos.png";
+
 
 const AdminSalesHistoryPage = () => {
 
@@ -166,174 +170,100 @@ const AdminSalesHistoryPage = () => {
   }, [rows]);
 
   // ======= Export PDF (COP) =======
-  const exportPDF = () => {
-    if (!month && dateError) {
-      alert(dateError);
-      return;
-    }
-    try {
-      const HEAD_BG = [10, 102, 194];
-      const HEAD_TX = [255, 255, 255];
-      const GRID = [220, 226, 235];
-      const ZEBRA = [244, 248, 254];
+const exportPDF = () => {
+  // valida solo si aplicas rango manual (tu lógica actual)
+  if (!month && dateError) {
+    alert(dateError);
+    return;
+  }
 
-      const doc = new jsPDF({ orientation: "landscape", unit: "mm" });
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(14);
-      doc.text("Historial general de ventas", 14, 12);
+  try {
+    // 1) Normalizar filas para el schema genérico
+    const normalizedRows = (rows || []).map((r) => {
+      const unitPriceNum =
+        typeof r.unitPrice === "number" ? r.unitPrice : Number(r.unitPrice || 0);
+      const totalNum =
+        typeof r.total === "number" ? r.total : Number(r.total || 0);
 
-      const columns = [
-        { header: "Fecha", dataKey: "date" },
-        { header: "Usuario", dataKey: "user" },
-        { header: "Producto", dataKey: "product" },
-        { header: "Variante", dataKey: "variant" },
-        { header: "Precio unit.", dataKey: "unitPrice" },
-        { header: "Cant.", dataKey: "qty" },
-        { header: "Total", dataKey: "total" },
-        { header: "Stock cierre", dataKey: "stock" },
-        { header: "Estado", dataKey: "status" },
-      ];
-
-      const body = (rows || []).map((r) => {
-        const unitPriceNum = Number(
-          typeof r.unitPrice === "number" ? r.unitPrice : r.unitPrice || 0
-        );
-        const totalNum = Number(
-          typeof r.total === "number" ? r.total : r.total || 0
-        );
-        return {
-          date: toLocal(r.date),
-          user: r.userName || "Desconocido",
-          product: r.productName || "Producto eliminado",
-          variant: { size: r.sizeLabel || "?", color: r.colorName || "?" },
-          unitPrice: formatCOP(unitPriceNum),
-          qty: r.quantity ?? 0,
-          total: formatCOP(totalNum),
-          stock:
-            typeof r.stockAtPurchase === "number"
-              ? r.stockAtPurchase
-              : r.stockAtPurchase ?? "-",
-          status: r.status || "",
-        };
-      });
-
-      const MARGINS = { left: 8, right: 8, top: 18 };
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const availableWidth = pageWidth - MARGINS.left - MARGINS.right;
-
-      const base = {
-        date: 36,
-        user: 40,
-        product: 60,
-        variant: 48,
-        unitPrice: 28,
-        qty: 18,
-        total: 30,
-        stock: 24,
-        status: 28,
+      return {
+        date: toLocal(r.date),
+        user: r.userName || "Desconocido",
+        product: r.productName || "Producto eliminado",
+        variant: `${r.sizeLabel || "?"} / ${r.colorName || "?"}`,
+        unitPrice: formatCOP(unitPriceNum),
+        qty: String(r.quantity ?? 0),
+        total: formatCOP(totalNum),
+        stock:
+          typeof r.stockAtPurchase === "number"
+            ? String(r.stockAtPurchase)
+            : String(r.stockAtPurchase ?? "-"),
+        status: r.status || "",
       };
-      const sumBase = Object.values(base).reduce((a, b) => a + b, 0);
-      const scale = Math.min(1, availableWidth / sumBase);
-      const W = Object.fromEntries(
-        Object.entries(base).map(([k, v]) => [k, Math.floor(v * scale)])
-      );
-      const tableFontSize = scale < 0.92 ? 8 : 9;
-      const cellPadding = scale < 0.92 ? 2 : 2.5;
+    });
 
-      autoTable(doc, {
-        startY: MARGINS.top,
-        columns,
-        body,
-        theme: "grid",
-        margin: { left: MARGINS.left, right: MARGINS.right, top: MARGINS.top },
-        styles: {
-          fontSize: tableFontSize,
-          cellPadding,
-          lineColor: GRID,
-          lineWidth: 0.2,
-          valign: "middle",
-          overflow: "linebreak",
-        },
-        headStyles: {
-          fillColor: HEAD_BG,
-          textColor: HEAD_TX,
-          lineWidth: 0,
-        },
-        alternateRowStyles: { fillColor: ZEBRA },
-        columnStyles: {
-          date: { cellWidth: W.date },
-          user: { cellWidth: W.user },
-          product: { cellWidth: W.product },
-          variant: { cellWidth: W.variant },
-          unitPrice: { cellWidth: W.unitPrice, halign: "right" },
-          qty: { cellWidth: W.qty, halign: "right" },
-          total: { cellWidth: W.total, halign: "right" },
-          stock: { cellWidth: W.stock, halign: "right" },
-          status: { cellWidth: W.status },
-        },
-        didParseCell: (d) => {
-          if (d.section === "body" && d.column.dataKey === "variant") {
-            d.cell.text = [];
-          }
-        },
-        didDrawCell: (d) => {
-          if (d.section !== "body" || d.column.dataKey !== "variant") return;
+    // 2) Total vendido
+    const sumTotalNumber = (rows || []).reduce((acc, r) => {
+      const n = typeof r.total === "number" ? r.total : Number(r.total || 0);
+      return acc + (isNaN(n) ? 0 : n);
+    }, 0);
 
-          const Doc = d.doc;
-          const { x, y, width, height } = d.cell;
-          const pad = 1.5;
-          const ix = x + pad,
-            iy = y + pad,
-            iw = width - pad * 2,
-            ih = height - pad * 2;
-          const headerH = Math.min(6, ih * 0.35);
-          const midX = ix + iw / 2;
-
-          Doc.setDrawColor(220, 226, 235);
-          Doc.setLineWidth(0.2);
-          Doc.rect(ix, iy, iw, ih);
-
-          Doc.setFillColor(235, 240, 248);
-          Doc.rect(ix, iy, iw, headerH, "F");
-          Doc.setDrawColor(220, 226, 235);
-          Doc.line(midX, iy, midX, iy + ih);
-
-          Doc.setTextColor(31, 45, 61);
-          Doc.setFontSize(tableFontSize - 0.5);
-          Doc.text("Talla", ix + 2, iy + headerH - 2);
-          Doc.text("Color", midX + 2, iy + headerH - 2);
-
-          const val = d.cell.raw || {};
-          const valueY = iy + headerH + 4.5;
-          Doc.setTextColor(55, 65, 81);
-          Doc.setFontSize(tableFontSize);
-          Doc.text(String(val.size ?? "?"), ix + 2, valueY);
-          Doc.text(String(val.color ?? "?"), midX + 2, valueY);
-        },
-        didDrawPage: (data) => {
-          const str = `Página ${
-            data.pageNumber
-          } de ${doc.internal.getNumberOfPages()}`;
-          doc.setFontSize(9);
-          doc.setTextColor(100);
-          doc.text(
-            str,
-            data.settings.margin.left,
-            doc.internal.pageSize.getHeight() - 6
-          );
-        },
-      });
-
-      const endY = doc.lastAutoTable?.finalY ?? MARGINS.top;
-      doc.setFontSize(11);
-      doc.text(`Total vendido: ${formatCOP(totals.sumTotal)}`, 14, endY + 10);
-
-      doc.save("historial_general_ventas.pdf");
-    } catch (e) {
-      console.error(e);
-      alert("No se pudo exportar PDF.");
+    // 3) Panel de parámetros usando los estados de ESTE componente
+    let clientPanelLines = [];
+    if (month) {
+      const { from: mFrom, toDisplay: mTo } = monthToRange(month);
+      clientPanelLines.push(`Mes: ${month}`);
+      if (mFrom) clientPanelLines.push(`Desde: ${mFrom}`);
+      if (mTo) clientPanelLines.push(`Hasta: ${mTo}`);
+    } else {
+      if (from) clientPanelLines.push(`Desde: ${dayjs(from).format("YYYY-MM-DD")}`);
+      if (to)   clientPanelLines.push(`Hasta: ${dayjs(to).format("YYYY-MM-DD")}`);
     }
-  };
+    if (status) clientPanelLines.push(`Estado: ${status}`);
+
+    // 4) Meta para el motor
+    const meta = {
+      reportName: "Historial general de ventas",
+      ecommerceName: "Tejiendo Sueños",
+      printedAt: new Date(),
+      timezoneLabel: "Sandoná/Nariño",
+      logo,
+
+      // Recuadro derecho (máx 4 líneas)
+      otrosDatos: [
+        "Dirección: Sandoná, Nariño",
+        "Teléfono: +57 3xx xxx xxxx",
+        "Email: contacto@tejiendosuenos.co",
+      ].join("\n"),
+
+      // Recuadro ancho bajo header (si hay algo que mostrar)
+      clientPanelTitle: "Parámetros del reporte",
+      clientPanelLines,     // puede ser []
+
+      qrReserveWidth: 0,    // sin QR en este reporte
+
+      // Totales bajo la tabla
+      summaryLines: [`Total vendido: ${formatCOP(sumTotalNumber)}`],
+
+      fileName: "historial_general_ventas.pdf",
+    };
+
+    // 5) Estilo (ajústalo a gusto)
+    const theme = {};
+    
+
+    // 6) Generar
+    generatePdf({
+      schema: salesHistorySchema,
+      rows: normalizedRows,
+      meta,
+      theme,
+      // sin limit → exporta todo lo filtrado
+    });
+  } catch (e) {
+    console.error(e);
+    alert("No se pudo exportar PDF.");
+  }
+};
 
   // ======= Export CSV (COP) =======
   const exportCSV = () => {

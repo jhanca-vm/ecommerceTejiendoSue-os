@@ -1,3 +1,4 @@
+// src/pages/admin/products/AdminOrderDetailPage
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useContext } from "react";
 
@@ -8,8 +9,10 @@ import AdminOrderCommentBlock from "../../../blocks/admin/AdminOrderCommentBlock
 import { toast } from "react-toastify";
 import { formatCOP } from "../../../utils/currency";
 
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generatePdf } from "../../../exports/pdfReportEngine";
+import orderInvoiceSchema from "../../../exports/schemas/orderInvoice";
+import logo from "../../../assets/manos.png";
+import dayjs from "dayjs";
 
 import {
   FaSave,
@@ -135,170 +138,125 @@ const AdminOrderDetailPage = () => {
     navigate("/admin");
   };
 
-  const goToOrder = (offset) => {
-    const newIndex = currentIndex + offset;
-    if (newIndex >= 0 && newIndex < orderIds.length) {
-      const nextId = orderIds[newIndex];
-      navigate(`/admin/orders/${nextId}`);
-    }
-  };
-
   // ====== PDF (landscape) ======
   const exportSingleOrderToPDF = () => {
     if (!order) return;
+    
+    const asBlank = (n) => (Number(n) ? formatCOP(Number(n)) : "-");
 
-    const HEAD_BG = [10, 102, 194];
-    const HEAD_TX = [255, 255, 255];
-    const GRID = [220, 226, 235];
-    const ALT_ROW = [244, 248, 254];
-
-    const doc = new jsPDF({ orientation: "landscape", unit: "mm" });
-
-    doc.setFontSize(14);
-    doc.text("Factura de Pedido", 14, 12);
-
-    doc.setFontSize(10);
-    doc.text(`ID del pedido: ${order._id}`, 14, 20);
-    doc.text(`Usuario Nombre: ${order.user?.name || "N/A"}`, 14, 26);
-    doc.text(`Usuario Correo: ${order.user?.email || "N/A"}`, 14, 32);
-    doc.text(`Creado: ${fmtDate(order.createdAt)}`, 14, 38);
-    doc.text(`Estado: ${order.status}`, 14, 44);
-    doc.text(
-      `Fecha estado actual: ${fmtDate(
-        order.currentStatusAt || order.updatedAt
-      )}`,
-      14,
-      50
+    // --- Cálculos de totales (por si no vienen precomputados) ---
+    const items = order.items || [];
+    const unitPriceOf = (it) =>
+      Number(
+        it?.unitPrice ?? it?.product?.effectivePrice ?? it?.product?.price ?? 0
+      );
+    const subTotalNumber = items.reduce(
+      (acc, it) => acc + unitPriceOf(it) * Number(it?.quantity ?? 0),
+      0
+    );
+    const envioNumber = Number(order.shippingCost ?? 0);
+    const descuentoNumber = Number(order.discount ?? 0);
+    const impuestosNumber = Number(order.tax ?? 0);
+    const totalNumber = Number(
+      order.total ??
+        subTotalNumber + envioNumber + impuestosNumber - descuentoNumber
     );
 
-    let y = 56;
-    if (order.trackingNumber) {
-      doc.text(`Guía: ${order.trackingNumber}`, 14, y);
-      y += 6;
-    }
-    if (order.shippingCompany) {
-      doc.text(`Transportadora: ${order.shippingCompany}`, 14, y);
-      y += 6;
-    }
-
-    const columns = [
-      { header: "Producto", dataKey: "product" },
-      { header: "Variante", dataKey: "variant" },
-      { header: "Cantidad", dataKey: "qty" },
-      { header: "Precio", dataKey: "price" },
-      { header: "Subtotal", dataKey: "subtotal" },
-    ];
-
-    const body = (order.items || []).map((item) => {
-      const hasPrice = typeof item.product?.price === "number";
-      const price = hasPrice ? item.product.price : 0;
-      const qty = Number(item.quantity) || 0;
-      const subtotal = qty * Number(price);
+    // --- Filas de la tabla (mapeo al schema) ---
+    const rows = items.map((item) => {
+      const unit = unitPriceOf(item);
+      const qty = Number(item?.quantity ?? 0);
+      const subtotal = unit * qty;
 
       return {
-        product: item.product?.name || "Producto eliminado",
-        variant: {
-          size: item.size?.label || "-",
-          color: item.color?.name || "-",
-        },
-        qty,
-        price: hasPrice ? formatCOP(price) : "-",
-        subtotal: hasPrice ? formatCOP(subtotal) : "-",
+        product: item?.product?.name || "Producto eliminado",
+        size: item?.size?.label || "-",
+        color: item?.color?.name || "-",
+        qty: String(qty),
+        price: String(formatCOP(unit)),
+        subtotal: String(formatCOP(subtotal)),
       };
     });
 
-    autoTable(doc, {
-      startY: y + 4,
-      columns,
-      body,
-      theme: "grid",
-      styles: {
-        fontSize: 9,
-        cellPadding: 2.5,
-        lineColor: GRID,
-        lineWidth: 0.2,
-        valign: "middle",
-      },
-      headStyles: { fillColor: HEAD_BG, textColor: HEAD_TX, lineWidth: 0 },
-      alternateRowStyles: { fillColor: ALT_ROW },
-      columnStyles: {
-        product: { cellWidth: 80 },
-        variant: { cellWidth: 50 },
-        qty: { halign: "right", cellWidth: 22 },
-        price: { halign: "right", cellWidth: 30 },
-        subtotal: { halign: "right", cellWidth: 32 },
-      },
-      didParseCell: (data) => {
-        if (data.section === "body" && data.column.dataKey === "variant")
-          data.cell.text = [];
-      },
-      didDrawCell: (data) => {
-        if (data.section !== "body" || data.column.dataKey !== "variant")
-          return;
-        const Doc = data.doc;
-        const { x, y, width, height } = data.cell;
-        const pad = 1.5;
-        const ix = x + pad,
-          iy = y + pad,
-          iw = width - pad * 2,
-          ih = height - pad * 2;
-        const headerH = Math.min(6, ih * 0.35);
-        const midX = ix + iw / 2;
+    // --- Metadatos y paneles de cabecera ---
+    const meta = {
+      reportName: `Factura de Pedido: ${order._id.slice(-8).toUpperCase()}`,
+      ecommerceName: "Tejiendo Sueños",
+      printedAt: new Date(),
+      timezoneLabel: "Sandoná/Nariño",
+      logo,
+      // Recuadro grande debajo del header:
+      clientPanelTitle: "Datos del cliente",
+      clientPanelLines: [
+        ' ',
+        `Cliente: ${order.user?.name || "N/A"}`,
+        `Email: ${order.user?.email || "N/A"}`,
+        `Creado: ${dayjs(order.createdAt).format("YYYY-MM-DD HH:mm")}`,
+        `Estado: ${order.status || "-"}`,
+        ...(order.trackingNumber ? [`Guía: ${order.trackingNumber}`] : []),
+        ...(order.shippingCompany
+          ? [`Transportadora: ${order.shippingCompany}`]
+          : []),
+      ],
+      qrReserveWidth: 38, // espacio reservado (mm) para QR a la derecha
+      qrShowPlaceholder: true, // muestra “QR (próximamente)”
 
-        Doc.setDrawColor(GRID[0], GRID[1], GRID[2]);
-        Doc.setLineWidth(0.2);
-        Doc.rect(ix, iy, iw, ih);
-        Doc.setFillColor(235, 240, 248);
-        Doc.rect(ix, iy, iw, headerH, "F");
-        Doc.setDrawColor(GRID[0], GRID[1], GRID[2]);
-        Doc.line(midX, iy, midX, iy + ih);
+      // Caja derecha pequeña (igual que antes)
+      otrosDatos: [
+        "Dirección: Sandoná, Nariño",
+        "Teléfono: +57 3xx xxx xxxx",
+        "Email: contacto@tejiendosuenos.co",
+      ].join("\n"),
 
-        Doc.setTextColor(31, 45, 61);
-        Doc.setFontSize(8.5);
-        Doc.text("Talla", ix + 2, iy + headerH - 2);
-        Doc.text("Color", midX + 2, iy + headerH - 2);
+      // Totales + nota
+    summaryLines: [
+    `Subtotal: ${formatCOP(subTotalNumber)}`,
+    `Envío: ${asBlank(envioNumber)}`,                   
+    `Descuento: ${asBlank(descuentoNumber) ? + asBlank(descuentoNumber) : ""}`, 
+    `Impuestos: ${asBlank(impuestosNumber)}`,
+    `TOTAL: ${formatCOP(totalNumber)}`,
+  ],
+      note: order.adminComment ? String(order.adminComment) : "",
 
-        const val = data.cell.raw || {};
-        const valueY = iy + headerH + 4.5;
-        Doc.setTextColor(55, 65, 81);
-        Doc.setFontSize(9);
-        Doc.text(String(val.size ?? "-"), ix + 2, valueY);
-        Doc.text(String(val.color ?? "-"), midX + 2, valueY);
+      fileName: `pedido_${order._id}.pdf`,
+    };
+
+    // --- Densidad/estética (opcional) ---
+    const theme = {
+      // 1) Márgenes más elegantes (más aire)
+      MARGINS: { left: 16, right: 16, top: 20, bottom: 16 },
+
+      // 2) Tipografías (jerarquía más clara)
+      FONT: { title: 16.5, subtitle: 11, meta: 9 },
+
+      // 3) Densidad de tabla (comodidad ≠ apretado)
+      TABLE: {
+        fontSize: 8.6,
+        headFontSize: 10,
+        cellPadding: 2,
+        minCellHeight: 7.6,
       },
+
+      // 4) Colores de marca (ajusta el marrón si lo deseas)
+      COLORS: {
+        title: [130, 70, 25], // título un poco más cálido
+        headBg: [130, 70, 25],
+        headTx: [255, 255, 255],
+        text: [45, 45, 45],
+        grid: [225, 229, 235],
+        zebra: [248, 250, 252],
+        box: [235, 236, 240],
+      },
+    };
+
+    // --- Generar PDF (portrait por defecto en el motor) ---
+    generatePdf({
+      schema: orderInvoiceSchema,
+      rows,
+      meta,
+      theme,
+      // sin 'limit' => imprime todos los ítems y pagina automáticamente
     });
-
-    const endY = doc.lastAutoTable?.finalY ?? y + 4;
-    doc.setFontSize(11);
-    doc.text(`Total: ${formatCOP(order.total ?? 0)}`, 14, endY + 8);
-
-    if (order.adminComment) {
-      doc.setFontSize(10);
-      doc.text("Comentario del administrador:", 14, endY + 16);
-      doc.text(order.adminComment, 14, endY + 22);
-    }
-
-    // Fechas por estado (si vienen)
-    if (order.statusTimestamps && Object.keys(order.statusTimestamps).length) {
-      let y2 = endY + 30;
-      doc.setFontSize(12);
-      doc.text("Fechas por estado", 14, y2);
-      y2 += 6;
-
-      const stRows = Object.entries(order.statusTimestamps).map(([k, v]) => ({
-        estado: labelFor(k),
-        fecha: fmtDate(v),
-      }));
-
-      autoTable(doc, {
-        startY: y2,
-        head: [["Estado", "Fecha"]],
-        body: stRows.map((r) => [r.estado, r.fecha]),
-        styles: { fontSize: 9, cellPadding: 2 },
-        headStyles: { fillColor: [90, 90, 90], textColor: 255 },
-      });
-    }
-
-    doc.save(`pedido_${order._id}.pdf`);
   };
 
   if (!order) return <p className="loading">Cargando detalles del pedido...</p>;
@@ -340,7 +298,7 @@ const AdminOrderDetailPage = () => {
 
       <div className="actions-top">
         <button className="btn btn--ghost" onClick={exportSingleOrderToPDF}>
-          Descargar PDF
+          Descargar Factura
         </button>
       </div>
 
@@ -505,28 +463,6 @@ const AdminOrderDetailPage = () => {
           >
             <FaTimesCircle className="icon" />
             Cancelar
-          </button>
-        </div>
-
-        <div className="nav-row">
-          <button className="btn btn--ghost" onClick={() => navigate("/admin")}>
-            🔙 Volver al listado
-          </button>
-
-          <button
-            className="btn btn--ghost"
-            onClick={() => goToOrder(-1)}
-            disabled={currentIndex <= 0}
-          >
-            ⬅ Pedido anterior
-          </button>
-
-          <button
-            className="btn btn--ghost"
-            onClick={() => goToOrder(1)}
-            disabled={currentIndex >= orderIds.length - 1}
-          >
-            Pedido siguiente ➡
           </button>
         </div>
       </div>

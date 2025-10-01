@@ -1,11 +1,18 @@
-// src/contexts/SupportContext
-import { createContext, useContext, useEffect, useState } from "react";
-
-import apiUrl from "../api/apiClient";
-
+// src/contexts/SupportContext.jsx
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+} from "react";
+import api from "../api/apiClient";
+import { socket } from "../socket";
 import { AuthContext } from "./AuthContext";
 
-export const SupportContext = createContext();
+// === CONTEXTO: crea y exporta el contexto ===
+export const SupportContext = createContext(null);
 
 export function SupportProvider({ children }) {
   const { token, user } = useContext(AuthContext);
@@ -56,7 +63,6 @@ export function SupportProvider({ children }) {
     if (!convId || !Array.isArray(newMsgs) || !newMsgs.length) return;
     setMessagesByConv((prev) => {
       const curr = prev[convId] || [];
-      // Merge + dedupe (por si llega socket y http casi a la vez)
       const merged = uniqById([...curr, ...newMsgs]);
       return { ...prev, [convId]: sortByTime(merged) };
     });
@@ -188,7 +194,6 @@ export function SupportProvider({ children }) {
         { headers: { ...authHeader, "Idempotency-Key": idemKey } }
       );
 
-      // ⚠️ REEMPLAZO ATÓMICO: quita el temp y CUALQUIER duplicado por _id del mensaje real
       setMessagesByConv((prev) => {
         const current = prev[cid] || [];
         const cleaned = current.filter(
@@ -200,10 +205,8 @@ export function SupportProvider({ children }) {
         return { ...prev, [cid]: sortByTime(next) };
       });
 
-      // Evita que fetchHistory dispare inmediatamente
       lastFetchedAt.current.set(cid, Date.now());
     } catch (e) {
-      // si falló, quita el temp
       setMessagesByConv((prev) => {
         const current = prev[cid] || [];
         const cleaned = current.filter((m) => String(m._id) !== String(tempId));
@@ -236,8 +239,6 @@ export function SupportProvider({ children }) {
         );
         return { ...prev, [cid]: next };
       });
-    } catch {
-      // noop
     } finally {
       readInFlight.current.delete(cid);
     }
@@ -312,28 +313,40 @@ export function SupportProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, user]);
 
-  const value = {
-    conversations,
-    loadingList,
-    activeConversationId,
-    setActiveConversationId,
-    messagesByConv,
-    setMessagesByConv,
-
-    openConversation,
-    fetchConversations,
-    fetchHistoryByConversation,
-    sendMessage,
-    markConversationAsRead,
-    fetchUnreadMessagesCount,
-    unreadCount,
-  };
+  const value = useMemo(
+    () => ({
+      conversations,
+      loadingList,
+      activeConversationId,
+      setActiveConversationId,
+      messagesByConv,
+      setMessagesByConv,
+      openConversation,
+      fetchConversations,
+      fetchHistoryByConversation,
+      sendMessage,
+      markConversationAsRead,
+      fetchUnreadMessagesCount,
+      unreadCount,
+    }),
+    [
+      conversations,
+      loadingList,
+      activeConversationId,
+      messagesByConv,
+      unreadCount,
+    ]
+  );
 
   return (
     <SupportContext.Provider value={value}>{children}</SupportContext.Provider>
   );
 }
 
+// === HOOK correcto: usa el CONTEXTO, no el provider ===
 export function useSupport() {
-  return useContext(SupportContext);
+  const ctx = useContext(SupportContext);
+  if (!ctx)
+    throw new Error("useSupport debe usarse dentro de <SupportProvider>");
+  return ctx;
 }

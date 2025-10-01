@@ -1,3 +1,4 @@
+// src/blocks/SupportChatBlock
 import { useState, useEffect, useRef } from "react";
 
 const SupportChatBlock = ({ messages, onSendMessage, user }) => {

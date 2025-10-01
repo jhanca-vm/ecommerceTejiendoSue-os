@@ -1,3 +1,4 @@
+// src/pages/AdminInboxPage
 import { useEffect, useState, useContext } from "react";
 
 import apiUrl from "../api/apiClient";

@@ -2,7 +2,7 @@
 
 const ordersReportSchema = {
   columns: [
-    { header: "Fecha",    key: "createdAt", width: 26, type: "text", align: "left", fontSize: 8 },
+    { header: "Fecha",    key: "createdAt", width: 26, type: "text", align: "left", fontSize: 7.8 },
     { header: "Pedido",   key: "pedido",    width: 28, type: "text", truncate: 28, fontSize: 8},
     { header: "Email",    key: "userEmail", width: 60, type: "text", truncate: 32, fontSize: 8 },
     { header: "Producto", key: "product",   width: 40, type: "text", truncate: 32 },

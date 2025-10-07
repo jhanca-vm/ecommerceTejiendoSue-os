@@ -13,7 +13,7 @@ const Section = ({ title, items = [], toMore }) => {
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
 
-  const data = (items || []).slice(0, 10); // límite duro 10
+  const data = (items || []).slice(0, 10);
 
   const updateArrows = () => {
     const el = trackRef.current;

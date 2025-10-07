@@ -308,13 +308,6 @@ const ProductDetailBlock = ({
   const [loadingBuyNow, setLoadingBuyNow] = useState(false);
   const [success, setSuccess] = useState({ open: false, humanCode: "" });
 
-  const fmtCOP = (n) =>
-    Number(n || 0).toLocaleString("es-CO", {
-      style: "currency",
-      currency: "COP",
-      maximumFractionDigits: 0,
-    });
-
   const handleBuyNow = () => {
     if (!user || user.role === "admin") {
       showToast("Debes iniciar sesión como usuario para comprar", "warning");
@@ -715,9 +708,11 @@ const ProductDetailBlock = ({
               </button>
             </div>
 
-            <Link to="/" className="pd__back">
-              ← Regresar al comercio
-            </Link>
+            <button className="btn btn--link">
+              <Link to="/" className="pd__back">
+                ← Regresar al comercio
+              </Link>
+            </button>
           </div>
         </aside>
       </div>
@@ -779,13 +774,12 @@ const ProductDetailBlock = ({
 
               {isUser && !eligible && (
                 <p className="pd__hint" style={{ color: "#b45309" }}>
-                  Solo <b>compradores verificados</b> pueden reseñar este
-                  producto.
+                  Solo <b>compradores </b> pueden reseñar este producto.
                 </p>
               )}
 
               <p className="pd__rateHint">
-                Aquí se califica: selecciona cuántas ⭐ das al producto.
+                selecciona cuántas ⭐ das al producto.
               </p>
               <StarRatingInput value={myRating} onChange={setMyRating} />
 
@@ -849,8 +843,7 @@ const ProductDetailBlock = ({
                   </button>
                 )}
                 <span className="pd__hint">
-                  Solo puedes tener <b>una reseña</b> por producto. Guardar
-                  vuelve a escribir la tuya.
+                  Solo puedes tener <b>una reseña</b> por producto.
                 </span>
               </div>
             </form>
@@ -905,18 +898,21 @@ const ProductDetailBlock = ({
       </section>
 
       {/* Destacados */}
-      {featuredProducts?.length > 0 && (
-        <section className="pd__section">
-          <h2>Productos destacados</h2>
-          <div className="pd__featured">
-            {featuredProducts.map((it) => (
-              <MiniCard key={it._id} item={it} />
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="pd__section">
+        <h1>Productos destacados</h1>
+        {featuredProducts?.length > 0 && (
+          <section className="pd__section">
+            <h2>Productos destacados</h2>
+            <div className="pd__featured">
+              {featuredProducts.map((it) => (
+                <MiniCard key={it._id} item={it} />
+              ))}
+            </div>
+          </section>
+        )}
+      </section>
 
-      {/* ============== LIGHTBOX / POPUP ============== */}
+      {/* ============== POPUP Imagenes ============== */}
       <div
         className={`lb ${lbOpen ? "open" : ""}`}
         role="dialog"

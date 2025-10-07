@@ -10,6 +10,7 @@ const ProductDetail = () => {
   const [product, setProduct] = useState(null);
   const [error, setError] = useState("");
   const { addToCart } = useContext(CartContext);
+    const [featuredProducts, setFeaturedProducts] = useState([]);
 
   useEffect(() => {
     let mounted = true;

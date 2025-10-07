@@ -4,7 +4,7 @@ const AdminColorsPage = () => {
   return (
     <div className="admin-page-container">
       <AdminListManager
-        title="Tallas"
+        title="Colores"
         path="/colors"        
         fieldName="name"    
       />

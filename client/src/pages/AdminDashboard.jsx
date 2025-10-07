@@ -195,10 +195,8 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
       fileName: `pedidos_${friendlyName}_${today}.pdf`,
     };
 
-    // 3) Theme opcional (si quieres retocar colores globales)
     const theme = {};
 
-    // 4) Generar PDF (portrait) con límite de 10 filas
     generatePdf({
       schema: ordersReportSchema,
       rows,
@@ -217,7 +215,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         Creado: dayjs(order.createdAt).format("YYYY-MM-DD HH:mm"),
         "Fecha estado actual": dayjs(
           order.currentStatusAt || order.updatedAt
-        ).format("YYYY-MM-DD HH:mm"), // <-- nuevo campo
+        ).format("YYYY-MM-DD HH:mm"),
         Producto: item.product?.name || "Eliminado",
         Talla: item.size?.label || "-",
         Color: item.color?.name || "-",

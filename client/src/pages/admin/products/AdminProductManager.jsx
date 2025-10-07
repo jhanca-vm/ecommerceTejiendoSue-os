@@ -237,8 +237,8 @@ const AdminProductPage = () => {
 
   return (
     <div className="admin-products">
-      <div className="header">
-        <h2>Administrar Productos</h2>
+      <div className="header ao__head">
+        <h1>Administrar Productos</h1>
       </div>
 
       <div className="toolbar">

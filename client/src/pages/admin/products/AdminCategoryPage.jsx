@@ -4,7 +4,7 @@ const AdminCategoryPage = () => {
   return (
     <div className="admin-page-container">
       <AdminListManager
-        title="Tallas"
+        title="Categorias"
         path="/categories"        
         fieldName="name"    
       />

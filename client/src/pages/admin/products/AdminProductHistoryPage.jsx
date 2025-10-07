@@ -1,16 +1,17 @@
-// pages/admin/products/AdminProductHistoryPage.jsx
+// src/pages/admin/products/AdminProductHistoryPage.jsx
 import React, { useEffect, useState, useContext, useMemo } from "react";
 
-import apiUrl from "../../../api/apiClient"
+import apiUrl from "../../../api/apiClient";
 
 import { useParams, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../../contexts/AuthContext";
 import { useToast } from "../../../contexts/ToastContext";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable"; 
 import * as XLSX from "xlsx";
 
-const API = "http://localhost:5000/api";
+import { generatePdf } from "../../../exports/pdfReportEngine";
+import productLedgerSchema from "../../../exports/schemas/productLedger";
+import productSalesSchema from "../../../exports/schemas/productSales";
+import { formatCOP } from "../../../utils/currency";
 
 const AdminProductHistoryPage = () => {
   const { id } = useParams();
@@ -22,10 +23,13 @@ const AdminProductHistoryPage = () => {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [productName, setProductName] = useState("");
+  const TZ_LABEL = "Sandoná/Nariño";
+
   // Filtros
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [status, setStatus] = useState(""); // ACTIVE | DELETED | ""
+  const [status, setStatus] = useState("");
   const [variantKey, setVariantKey] = useState("");
 
   const authHeaders = useMemo(
@@ -34,9 +38,24 @@ const AdminProductHistoryPage = () => {
   );
 
   useEffect(() => {
+    // cargar producto + historiales
+    loadProduct();
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadProduct = async () => {
+    try {
+      // Asumiendo endpoint GET /products/:id devuelve { name, ... }
+      const res = await apiUrl.get(`products/${id}`, authHeaders);
+      const name =
+        res?.data?.name || res?.data?.title || res?.data?.productName || "";
+      setProductName(String(name));
+    } catch {
+      // Si falla, dejamos vacío y usamos fallback en el título
+      setProductName("");
+    }
+  };
 
   const loadData = async (opts = {}) => {
     setLoading(true);
@@ -48,10 +67,7 @@ const AdminProductHistoryPage = () => {
       if (opts.variantKey) params.append("variantKey", opts.variantKey);
 
       const [leg, sal] = await Promise.all([
-        apiUrl.get(
-          `products/${id}/ledger?${params.toString()}`,
-          authHeaders
-        ),
+        apiUrl.get(`products/${id}/ledger?${params.toString()}`, authHeaders),
         apiUrl.get(
           `products/${id}/sales-history?${params.toString()}`,
           authHeaders
@@ -73,77 +89,68 @@ const AdminProductHistoryPage = () => {
   const toLocal = (d) => (d ? new Date(d).toLocaleString() : "");
 
   // ===================== EXPORTS =====================
+  // A) PDF Ledger (título = nombre de producto)
   const exportLedgerPDF = () => {
     try {
-      const doc = new jsPDF();
-      doc.text("Historial por Variante (Libro Mayor)", 14, 14);
+      const rows = (ledger || []).map((r) => ({
+        fecha: toLocal(r.createdAt),
+        evento: r.eventType || "",
+        size: `${r.sizeLabelSnapshot || "?"} `,
+        color: `${
+          r.colorNameSnapshot || "?"
+        }`,
+        prev: r.prevStock ?? "",
+        nuevo: r.newStock ?? "",
+        estado: r.status || "",
+        precio: formatCOP(
+          r.priceSnapshot === "number" ? r.priceSnapshot : r.priceSnapshot || 0
+        ),
+        nota: r.note || "",
+      }));
 
-      const head = [
-        [
-          "Fecha",
-          "Evento",
-          "Variante",
-          "Stock previo",
-          "Stock nuevo",
-          "Estado",
-          "Precio (snap)",
-          "Nota",
-        ],
-      ];
-      const body = (ledger || []).map((r) => [
-        toLocal(r.createdAt),
-        r.eventType || "",
-        `${r.sizeLabelSnapshot || "?"} / ${r.colorNameSnapshot || "?"}`,
-        r.prevStock ?? "",
-        r.newStock ?? "",
-        r.status || "",
-        typeof r.priceSnapshot === "number"
-          ? r.priceSnapshot
-          : r.priceSnapshot || "",
-        r.note || "",
-      ]);
-
-      autoTable(doc, {
-        startY: 20,
-        head,
-        body,
-        styles: { fontSize: 9, cellPadding: 2 },
-        headStyles: { fillColor: [240, 240, 240] },
-        didDrawPage: (data) => {
-          // puedes agregar número de página, fecha, etc.
+      generatePdf({
+        schema: productLedgerSchema,
+        rows,
+        meta: {
+          reportName: productName
+            ? `Historial por Variante — ${productName}`
+            : "Historial por Variante",
+          ecommerceName: "Tejiendo Sueños",
+          timezoneLabel: TZ_LABEL,
+          fileName: `historial_variantes_${id}.pdf`,
         },
       });
-
-      doc.save(`historial_variantes_${id}.pdf`);
     } catch (e) {
       console.error(e);
       showToast("No se pudo exportar el PDF de variantes", "error");
     }
   };
 
+  // B) PDF Ventas (título = nombre de producto)
   const exportSalesPDF = () => {
     try {
-      const doc = new jsPDF();
-      doc.text("Historial de Ventas del Producto", 14, 14);
+      const rows = (sales || []).map((s) => ({
+        fecha: toLocal(s.date),
+        size: `${s.sizeLabel || "?"}`,
+        color: `${s.colorName || "?"}`,
+        precioUnit:
+          formatCOP (s.unitPrice === "number" ? s.unitPrice : s.unitPrice || 0),
+        cantidad: s.quantity ?? 0,
+        total: formatCOP (s.total === "number" ? s.total : s.total || 0),
+      }));
 
-      const head = [["Fecha", "Variante", "Precio unit.", "Cantidad", "Total"]];
-      const body = (sales || []).map((s) => [
-        toLocal(s.date),
-        `${s.sizeLabel || "?"} / ${s.colorName || "?"}`,
-        typeof s.unitPrice === "number" ? s.unitPrice : s.unitPrice || 0,
-        s.quantity ?? 0,
-        typeof s.total === "number" ? s.total : s.total || 0,
-      ]);
-
-      autoTable(doc, {
-        startY: 20,
-        head,
-        body,
-        styles: { fontSize: 9, cellPadding: 2 },
-        headStyles: { fillColor: [240, 240, 240] },
+      generatePdf({
+        schema: productSalesSchema,
+        rows,
+        meta: {
+          reportName: productName
+            ? `${productName} — Historial de Ventas`
+            : "Historial de Ventas",
+          ecommerceName: "Tejiendo Sueños",
+          timezoneLabel: TZ_LABEL,
+          fileName: `historial_ventas_${id}.pdf`,
+        },
       });
-
-      doc.save(`historial_ventas_${id}.pdf`);
     } catch (e) {
       console.error(e);
       showToast("No se pudo exportar el PDF de ventas", "error");
@@ -257,11 +264,12 @@ const AdminProductHistoryPage = () => {
                 <tr>
                   <th>Fecha</th>
                   <th>Evento</th>
-                  <th>Variante</th>
+                  <th>Talla</th>
+                  <th>Color</th>
                   <th>Stock previo</th>
                   <th>Stock nuevo</th>
                   <th>Estado</th>
-                  <th>Precio (snapshot)</th>
+                  <th>Precio</th>
                   <th>Nota</th>
                 </tr>
               </thead>
@@ -275,18 +283,17 @@ const AdminProductHistoryPage = () => {
                     <tr key={r._id}>
                       <td>{toLocal(r.createdAt)}</td>
                       <td>{r.eventType}</td>
-                      <td>
-                        {(r.sizeLabelSnapshot || "?") +
-                          " / " +
-                          (r.colorNameSnapshot || "?")}
-                      </td>
+                      <td>{r.sizeLabelSnapshot || "?"}</td>
+                      <td>{r.colorNameSnapshot || "?"}</td>
                       <td>{r.prevStock ?? ""}</td>
                       <td>{r.newStock ?? ""}</td>
                       <td>{r.status}</td>
                       <td>
-                        {typeof r.priceSnapshot === "number"
-                          ? r.priceSnapshot
-                          : r.priceSnapshot || ""}
+                        {formatCOP(
+                          r.priceSnapshot === "number"
+                            ? r.priceSnapshot
+                            : r.priceSnapshot || 0
+                        )}
                       </td>
                       <td>{r.note || ""}</td>
                     </tr>
@@ -312,7 +319,8 @@ const AdminProductHistoryPage = () => {
               <thead>
                 <tr>
                   <th>Fecha</th>
-                  <th>Variante</th>
+                  <th>Talla</th>
+                  <th>Color</th>
                   <th>Precio unit.</th>
                   <th>Cantidad</th>
                   <th>Total</th>
@@ -327,18 +335,17 @@ const AdminProductHistoryPage = () => {
                   sales.map((s, idx) => (
                     <tr key={idx}>
                       <td>{toLocal(s.date)}</td>
+                      <td>{s.sizeLabel || "?"}</td>
+                      <td>{s.colorName || "?"}</td>
                       <td>
-                        {(s.sizeLabel || "?") + " / " + (s.colorName || "?")}
-                      </td>
-                      <td>
-                        {typeof s.unitPrice === "number"
-                          ? s.unitPrice
-                          : s.unitPrice || 0}
+                        {formatCOP(
+                          s.unitPrice === "number"
+                            ? s.unitPrice
+                            : s.unitPrice || 0
+                        )}
                       </td>
                       <td>{s.quantity ?? 0}</td>
-                      <td>
-                        {typeof s.total === "number" ? s.total : s.total || 0}
-                      </td>
+                      <td>{formatCOP(s.total)}</td>
                     </tr>
                   ))
                 )}

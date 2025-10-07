@@ -77,9 +77,9 @@ export function generatePdf({ schema, rows, meta, theme, limit }) {
     fileName: meta?.fileName || "reporte.pdf",
 
     // === NUEVO: gaps (distancia título → contenido) ===
-    clientPanelGap: 5, // antes ~1.8
-    paymentBoxGap: 5, // antes ~1.8
-    noteBoxGap: 5, // antes ~2
+    clientPanelGap: 5,
+    paymentBoxGap: 5,
+    noteBoxGap: 5,
 
     // === Opciones de ancho/alineación de medios de pago (si las usas) ===
     paymentBoxWidthMm:

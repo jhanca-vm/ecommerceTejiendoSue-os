@@ -1,3 +1,4 @@
+// server/routes/productRoutes.js
 const express = require("express");
 const { body, param } = require("express-validator");
 const { handleValidationErrors } = require("../middleware/validation");
@@ -20,6 +21,7 @@ const {
 const {
   searchProducts,
   getProductSections,
+  getProductRecommendations,
 } = require("../controllers/productSearchController");
 
 const Product = require("../models/Product");
@@ -282,6 +284,13 @@ router.get("/public/:id", async (req, res, next) => {
 /** Búsqueda pública / secciones */
 router.get("/search", productLimiter, searchProducts);
 router.get("/sections", productLimiter, getProductSections);
+router.get(
+  "/:id/recommendations",
+  productLimiter,
+  [param("id").isMongoId().withMessage("ID inválido")],
+  handleValidationErrors,
+  getProductRecommendations
+);
 
 /* ===================== CRUD y endpoints existentes ===================== */
 router.get("/", getProducts);

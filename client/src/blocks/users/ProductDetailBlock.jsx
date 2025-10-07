@@ -138,6 +138,15 @@ const ProductDetailBlock = ({
   const [lbIndex, setLbIndex] = useState(0);
   const touchStartX = useRef(null);
 
+  /*  Destacados*/
+  const [recs, setRecs] = useState({
+    similar: [],
+    complementary: [],
+    fallback: [],
+  });
+  const [loadingRecs, setLoadingRecs] = useState(true);
+  const [recsError, setRecsError] = useState("");
+
   const openLightbox = (idx) => {
     setLbIndex(idx);
     setLbOpen(true);
@@ -561,6 +570,41 @@ const ProductDetailBlock = ({
     }
   };
 
+  /* Destacados*/
+  useEffect(() => {
+    let cancel = false;
+    if (!product?._id) return;
+
+    setLoadingRecs(true);
+    setRecsError("");
+    setRecs({ similar: [], complementary: [], fallback: [] });
+
+    apiUrl
+      .get(`products/${product._id}/recommendations`, { params: { limit: 10 } })
+      .then(({ data }) => {
+        if (cancel) return;
+        setRecs({
+          similar: Array.isArray(data?.similar) ? data.similar : [],
+          complementary: Array.isArray(data?.complementary)
+            ? data.complementary
+            : [],
+          fallback: Array.isArray(data?.fallback) ? data.fallback : [],
+        });
+      })
+      .catch(() => {
+        if (cancel) return;
+        setRecsError("No se pudieron cargar recomendaciones.");
+        setRecs({ similar: [], complementary: [], fallback: [] });
+      })
+      .finally(() => {
+        if (!cancel) setLoadingRecs(false);
+      });
+
+    return () => {
+      cancel = true;
+    };
+  }, [product?._id]);
+
   const avg = Number(stats.avg || 0);
 
   /* ----- UI ----- */
@@ -898,17 +942,68 @@ const ProductDetailBlock = ({
       </section>
 
       {/* Destacados */}
+      {/* Recomendaciones */}
       <section className="pd__section">
-        <h1>Productos destacados</h1>
-        {featuredProducts?.length > 0 && (
-          <section className="pd__section">
-            <h2>Productos destacados</h2>
-            <div className="pd__featured">
-              {featuredProducts.map((it) => (
-                <MiniCard key={it._id} item={it} />
-              ))}
-            </div>
-          </section>
+        <h2>También te puede interesar</h2>
+
+        {loadingRecs && <p>Cargando recomendaciones…</p>}
+        {!loadingRecs && recsError && (
+          <p style={{ color: "crimson" }}>{recsError}</p>
+        )}
+
+        {!loadingRecs && !recsError && (
+          <>
+            {/* Similares */}
+            {recs.similar?.length > 0 && (
+              <section className="pd__section">
+                <h3>Productos similares</h3>
+                <div className="pd__featured">
+                  {recs.similar.slice(0, 10).map((it) => (
+                    <MiniCard key={it._id} item={it} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Complementarios / cross-sell */}
+            {recs.complementary?.length > 0 && (
+              <section className="pd__section">
+                <h3>Combínalo con</h3>
+                <div className="pd__featured">
+                  {recs.complementary.slice(0, 10).map((it) => (
+                    <MiniCard key={it._id} item={it} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Fallback (tendencias/aleatorio controlado) */}
+            {recs.fallback?.length > 0 && (
+              <section className="pd__section">
+                <h3>Te puede interesar</h3>
+                <div className="pd__featured">
+                  {recs.fallback.slice(0, 10).map((it) => (
+                    <MiniCard key={it._id} item={it} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Si no llegó nada del backend, usa featuredProducts como respaldo */}
+            {!recs.similar?.length &&
+              !recs.complementary?.length &&
+              !recs.fallback?.length &&
+              featuredProducts?.length > 0 && (
+                <section className="pd__section">
+                  <h3>Productos destacados</h3>
+                  <div className="pd__featured">
+                    {featuredProducts.slice(0, 10).map((it) => (
+                      <MiniCard key={it._id} item={it} />
+                    ))}
+                  </div>
+                </section>
+              )}
+          </>
         )}
       </section>
 

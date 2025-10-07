@@ -1,3 +1,4 @@
+// server/models/Product.js
 const mongoose = require("mongoose");
 
 //SKU: 6–64 chars, alfanumérico + guiones/guion_bajo, sin espacios

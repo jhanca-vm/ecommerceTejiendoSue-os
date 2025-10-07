@@ -1,3 +1,4 @@
+// server/controllers/productSearchController.js
 const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const Category = require("../models/Category");
@@ -445,12 +446,12 @@ exports.getProductSections = async (req, res) => {
     const inStockOnly = String(req.query.inStockOnly ?? "1") !== "0";
 
     // Filtros opcionales por sección
-    const minDiscount = Math.max(0, parseIntSafe(req.query.minDiscount, 0)); // %
-    const minSales = Math.max(0, parseIntSafe(req.query.minSales, 0)); // best sellers
-    const daysNew = Math.max(0, parseIntSafe(req.query.daysNew, 0)); // novedades (días)
+    const minDiscount = Math.max(0, parseIntSafe(req.query.minDiscount, 0));
+    const minSales = Math.max(0, parseIntSafe(req.query.minSales, 0));
+    const daysNew = Math.max(0, parseIntSafe(req.query.daysNew, 0));
     const trendingHorizonDays = Math.max(
       0,
-      parseIntSafe(req.query.trendingHorizonDays, 0) // 0 = sin restricción
+      parseIntSafe(req.query.trendingHorizonDays, 0)
     );
 
     const isAdmin = req.user?.role === "admin";
@@ -616,5 +617,170 @@ exports.getProductSections = async (req, res) => {
   } catch (err) {
     console.error("getProductSections error:", err);
     return res.status(500).json({ error: "Error al obtener secciones" });
+  }
+};
+
+/* ======================= /products/:id/recommendations ======================= */
+/**
+ * Devuelve listas para la ficha: similares, complementarios, fallback.
+ * Criterios (adaptados a tu modelo):
+ *  - categories: es UN ObjectId (no array) → emparejamos por igualdad.
+ *  - trendingScore y salesCount ya existen en tu modelo.
+ *  - Sin "tags" (no existen en tu esquema actual).
+ * Visibilidad:
+ *  - Por defecto oculta sin stock a visitantes (inStockOnly=1).
+ *  - Admin puede ver todo.
+ */
+exports.getProductRecommendations = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!/^[0-9a-fA-F]{24}$/.test(String(id))) {
+      return res.status(400).json({ error: "ID inválido" });
+    }
+    const productId = new mongoose.Types.ObjectId(id);
+
+    const limit = clamp(parseIntSafe(req.query.limit, 10) || 10, 4, 24);
+    const inStockOnly = String(req.query.inStockOnly ?? "1") !== "0";
+    const isAdmin = req.user?.role === "admin";
+    const visibleMatch =
+      !isAdmin && inStockOnly ? [{ $match: { totalStock: { $gt: 0 } } }] : [];
+
+    // Traemos solo lo necesario del producto base
+    const base = await Product.findById(productId)
+      .select("_id categories")
+      .lean();
+    if (!base) return res.status(404).json({ error: "Producto no encontrado" });
+
+    // ---------- Similares: misma categoría, excluyendo el propio producto ----------
+    const similarPipeline = [
+      { $match: { _id: { $ne: productId }, categories: base.categories } },
+      {
+        $addFields: {
+          effectivePrice: computeEffectiveExpr(),
+          totalStock: totalStockExpr,
+        },
+      },
+      ...visibleMatch,
+      // Relevancia: ventas desc, luego más nuevos
+      { $sort: { salesCount: -1, createdAt: -1, _id: -1 } },
+      { $limit: limit },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          images: 1,
+          price: 1,
+          effectivePrice: 1,
+          salesCount: 1,
+        },
+      },
+    ];
+
+    // ---------- Complementarios: misma categoría también (cross-sell simple)
+    // Heurística: prioriza productos con descuento o best-sellers en esa categoría.
+    const complementaryPipeline = [
+      { $match: { _id: { $ne: productId }, categories: base.categories } },
+      {
+        $addFields: {
+          effectivePrice: computeEffectiveExpr(),
+          discountPercent: discountPercentExpr(),
+          totalStock: totalStockExpr,
+        },
+      },
+      ...visibleMatch,
+      // Ordena por "atractividad": primero con descuento mayor, luego ventas, luego nuevos
+      {
+        $sort: { discountPercent: -1, salesCount: -1, createdAt: -1, _id: -1 },
+      },
+      { $limit: Math.ceil(limit / 2) },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          images: 1,
+          price: 1,
+          effectivePrice: 1,
+          discountPercent: 1,
+        },
+      },
+    ];
+
+    // ---------- Fallback: trending global + mezcla aleatoria controlada ----------
+    const trendingPipeline = [
+      {
+        $addFields: {
+          effectivePrice: computeEffectiveExpr(),
+          totalStock: totalStockExpr,
+        },
+      },
+      ...visibleMatch,
+      { $sort: { trendingScore: -1, createdAt: -1, _id: -1 } },
+      { $limit: limit },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          images: 1,
+          price: 1,
+          effectivePrice: 1,
+          trendingScore: 1,
+        },
+      },
+    ];
+
+    let [similar, complementary, trending] = await Promise.all([
+      Product.aggregate(similarPipeline),
+      Product.aggregate(complementaryPipeline),
+      Product.aggregate(trendingPipeline),
+    ]);
+
+    // Si faltan "similares", completa con aleatorio (excluyendo ya sugeridos y el propio)
+    const need = Math.max(0, limit - (similar.length || 0));
+    let random = [];
+    if (need > 0) {
+      const excludeIds = [
+        productId,
+        ...similar.map((p) => p._id),
+        ...complementary.map((p) => p._id),
+      ];
+      random = await Product.aggregate([
+        { $match: { _id: { $nin: excludeIds } } },
+        {
+          $addFields: {
+            effectivePrice: computeEffectiveExpr(),
+            totalStock: totalStockExpr,
+          },
+        },
+        ...visibleMatch,
+        { $sample: { size: need } },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            images: 1,
+            price: 1,
+            effectivePrice: 1,
+          },
+        },
+      ]);
+    }
+
+    // Mezcla final para fallback (trending + random) sin duplicados
+    const seen = new Set();
+    const fallback = [];
+    for (const p of [...trending, ...random]) {
+      const k = String(p._id);
+      if (k === String(productId) || seen.has(k)) continue;
+      seen.add(k);
+      fallback.push(p);
+      if (fallback.length >= limit) break;
+    }
+
+    return res.json({ similar, complementary, fallback });
+  } catch (e) {
+    console.error("getProductRecommendations error:", e);
+    return res
+      .status(500)
+      .json({ error: "No se pudieron cargar recomendaciones" });
   }
 };

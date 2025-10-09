@@ -1,3 +1,5 @@
+/* src/styles/ adminDashboard */
+
 :root {
   --crema: #fbf3e6;
   --crema-2: #f5ebdc;
@@ -99,6 +101,7 @@
 }
 .btn--primary:hover {
   filter: brightness(1.05);
+  background-color: red;
 }
 .btn--ghost {
   background: #fff;

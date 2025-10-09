@@ -40,11 +40,9 @@ const AdminAlertsPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seen]);
 
-  // Tiempo real (usa el socket del contexto; NO reconectar aquí)
   useEffect(() => {
     if (!socket) return;
     const onAlert = (alert) => {
-      // Inserta al principio; si el filtro actual es "0" (no vistas), encaja perfecto
       setItems((prev) => [alert, ...prev]);
       syncUnread();
     };
@@ -55,7 +53,6 @@ const AdminAlertsPage = () => {
 
   const markSeen = async (id, value = true) => {
     await api.patch(`/admin/alerts/${id}/seen`, { seen: value });
-    // Refresca lista más contador
     setItems((arr) => arr.filter((a) => a._id !== id));
     syncUnread();
   };
@@ -69,120 +66,138 @@ const AdminAlertsPage = () => {
   const fmtDate = (d) => (d ? new Date(d).toLocaleString() : "—");
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Alertas</h2>
+    <div className="ao">
+      <div className="alerts__head">
+        <h2 className="alerts__title">Alertas</h2>
+      </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          margin: "12px 0",
-        }}
-      >
-        <label>
-          Filtro:{" "}
-          <select value={seen} onChange={(e) => setSeen(e.target.value)}>
+      <div className="card alerts-filters">
+        <label className="alerts-filters__group">
+          <span className="alerts-filters__label">Filtro</span>
+          <select
+            className="select"
+            value={seen}
+            onChange={(e) => setSeen(e.target.value)}
+          >
             <option value="0">No vistas</option>
             <option value="1">Vistas</option>
             <option value="all">Todas</option>
           </select>
         </label>
-        <button onClick={load}>Actualizar</button>
-        {seen !== "1" && (
-          <button onClick={markAllSeen}>Marcar todas como vistas</button>
-        )}
+
+        <div className="alerts-filters__actions">
+          <button className="btn btn--ghost" onClick={load}>
+            Actualizar
+          </button>
+          {seen !== "1" && (
+            <button className="btn btn--primary" onClick={markAllSeen}>
+              Marcar todas como vistas
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
-        <p>Cargando…</p>
+        <div className="alerts-loading sk"></div>
       ) : items.length === 0 ? (
-        <p>No hay alertas.</p>
+        <div className="card alerts-empty">
+          <div className="alerts-empty__icon" />
+          <p className="alerts-empty__text">No hay alertas.</p>
+        </div>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left" }}>Tipo</th>
-              <th style={{ textAlign: "left" }}>Mensaje</th>
-              <th style={{ textAlign: "left" }}>Asociado</th>
-              <th style={{ textAlign: "left" }}>Fecha</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((al) => {
-              const isOrder =
-                al.type === "ORDER_STALE_STATUS" ||
-                al.type === "ORDER_CREATED" ||
-                al.type === "ORDER_STATUS_CHANGED";
+        <div className="table-wrap">
+          <table className="table ">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Mensaje</th>
+                <th>Asociado</th>
+                <th>Fecha</th>
+                <th >Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((al) => {
+                const isOrder =
+                  al.type === "ORDER_STALE_STATUS" ||
+                  al.type === "ORDER_CREATED" ||
+                  al.type === "ORDER_STATUS_CHANGED";
 
-              const orderId =
-                typeof al.order === "string" ? al.order : al.order?._id || "";
+                const orderId =
+                  typeof al.order === "string" ? al.order : al.order?._id || "";
 
-              const orderLast8 = orderId
-                ? String(orderId).slice(-8).toUpperCase()
-                : "—";
+                const orderLast8 = orderId
+                  ? String(orderId).slice(-8).toUpperCase()
+                  : "—";
 
-              return (
-                <tr key={al._id}>
-                  <td>{mapType(al.type)}</td>
-                  <td>{al.message}</td>
-                  <td>
-                    {isOrder ? (
-                      <>
-                        Pedido:&nbsp;
-                        {orderId ? (
-                          <Link to={`/admin/orders/${orderId}`}>
-                            #{orderLast8}
-                          </Link>
-                        ) : (
-                          "—"
-                        )}
-                        {al.orderStatus ? (
-                          <div style={{ fontSize: 12, opacity: 0.8 }}>
-                            Estado: {al.orderStatus}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : (
-                      <>
-                        {al.product?._id ? (
-                          <Link to={`/admin/products/edit/${al.product._id}`}>
-                            {al.product?.name || al.product?._id}
-                          </Link>
-                        ) : (
-                          "—"
-                        )}
-                        {al.variant?.size?.label || al.variant?.color?.name ? (
-                          <div style={{ fontSize: 12, opacity: 0.8 }}>
-                            {al.variant?.size?.label
-                              ? ` · Talla: ${al.variant.size.label}`
-                              : ""}
-                            {al.variant?.color?.name
-                              ? ` · Color: ${al.variant.color.name}`
-                              : ""}
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-                  </td>
-                  <td>{fmtDate(al.createdAt)}</td>
-                  <td>
-                    {!al.seen ? (
-                      <button onClick={() => markSeen(al._id, true)}>
-                        Marcar vista
-                      </button>
-                    ) : (
-                      <button onClick={() => markSeen(al._id, false)}>
-                        Marcar no vista
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                return (
+                  <tr key={al._id} className={!al.seen ? "is-unseen" : ""}>
+                    <td className="alerts-col-type">{mapType(al.type)}</td>
+                    <td className="alerts-col-msg">{al.message}</td>
+                    <td className="alerts-col-assoc">
+                      {isOrder ? (
+                        <>
+                          <span className="assoc-label">Pedido: </span>
+                          {orderId ? (
+                            <Link to={`/admin/orders/${orderId}`}>
+                              #{orderLast8}
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
+                          {al.orderStatus ? (
+                            <div className="assoc-meta">
+                              Estado: {al.orderStatus}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          {al.product?._id ? (
+                            <Link to={`/admin/products/edit/${al.product._id}`}>
+                              {al.product?.name || al.product?._id}
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
+                          {al.variant?.size?.label ||
+                          al.variant?.color?.name ? (
+                            <div className="assoc-meta">
+                              {al.variant?.size?.label
+                                ? `· Talla: ${al.variant.size.label} `
+                                : ""}
+                              {al.variant?.color?.name
+                                ? `· Color: ${al.variant.color.name}`
+                                : ""}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </td>
+                    <td className="alerts-col-date">{fmtDate(al.createdAt)}</td>
+                    <td className="alerts-col-actions">
+                      {!al.seen ? (
+                        <button
+                          className="btn btn--primary btn--sm"
+                          onClick={() => markSeen(al._id, true)}
+                        >
+                          Marcar vista
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => markSeen(al._id, false)}
+                        >
+                          Marcar no vista
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

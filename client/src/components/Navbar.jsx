@@ -22,13 +22,12 @@ const isMatch = (pathname, matcher) => {
   if (Array.isArray(matcher)) return matcher.some((m) => isMatch(pathname, m));
   return false;
 };
-/* ================================================================= */
 
 /** ===================== MENÚ CONFIG ===================== */
 const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
-  const dynArtesanias = Array.isArray(dynamic.artesanias)
+  /*const dynArtesanias = Array.isArray(dynamic.artesanias)
     ? dynamic.artesanias
-    : [];
+    : [];*/
   const dynCafe = Array.isArray(dynamic.cafe) ? dynamic.cafe : [];
   const dynPanela = Array.isArray(dynamic.panela) ? dynamic.panela : [];
   const dynOtros = Array.isArray(dynamic.otros) ? dynamic.otros : [];
@@ -41,7 +40,44 @@ const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
           label: "Artesanías",
           to: "/artesanias",
           activeMatch: /^\/artesanias(\/|$)/,
-          children: dynArtesanias,
+          //children: dynArtesanias,
+          children: [
+            {
+              label: "Sombrero",
+              to: "/categoria/sombrero",
+              activeMatch: /^\/categoria\/sombrero(\/|$)/,
+            },
+            {
+              label: "Manualidades",
+              to: "/categoria/manualidades",
+              activeMatch: /^\/categoria\/manualidades(\/|$)/,
+            },
+            {
+              label: "Aretes",
+              to: "/categoria/aretes",
+              activeMatch: /^\/categoria\/aretes(\/|$)/,
+            },
+            {
+              label: "Miniaturas",
+              to: "/categoria/miniaturas",
+              activeMatch: /^\/categoria\/miniaturas(\/|$)/,
+            },
+            {
+              label: "Carteras",
+              to: "/categoria/carteras",
+              activeMatch: /^\/categoria\/carteras(\/|$)/,
+            },
+            {
+              label: "Hogar",
+              to: "/categoria/hogar",
+              activeMatch: /^\/categoria\/hogar(\/|$)/,
+            },
+            {
+              label: "Letras",
+              to: "/categoria/letras",
+              activeMatch: /^\/categoria\/letras(\/|$)/,
+            },
+          ],
         },
         {
           label: "Café",
@@ -111,7 +147,44 @@ const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
             label: "Artesanías",
             to: "/artesanias",
             activeMatch: /^\/artesanias(\/|$)/,
-            children: dynArtesanias,
+            //children: dynArtesanias,
+            children: [
+              {
+                label: "Sombrero",
+                to: "/categoria/sombrero",
+                activeMatch: /^\/categoria\/sombrero(\/|$)/,
+              },
+              {
+                label: "Manualidades",
+                to: "/categoria/manualidades",
+                activeMatch: /^\/categoria\/manualidades(\/|$)/,
+              },
+              {
+                label: "Aretes",
+                to: "/categoria/aretes",
+                activeMatch: /^\/categoria\/aretes(\/|$)/,
+              },
+              {
+                label: "Miniaturas",
+                to: "/categoria/miniaturas",
+                activeMatch: /^\/categoria\/miniaturas(\/|$)/,
+              },
+              {
+                label: "Carteras",
+                to: "/categoria/carteras",
+                activeMatch: /^\/categoria\/carteras(\/|$)/,
+              },
+              {
+                label: "Hogar",
+                to: "/categoria/hogar",
+                activeMatch: /^\/categoria\/hogar(\/|$)/,
+              },
+              {
+                label: "Letras",
+                to: "/categoria/letras",
+                activeMatch: /^\/categoria\/letras(\/|$)/,
+              },
+            ],
           },
           {
             label: "Café",
@@ -343,9 +416,9 @@ const Navbar = () => {
     : "/login";
 
   const isSupportActive =
-    isMatch(location.pathname, /^\/support(\/|$)/) ||        
-   isMatch(location.pathname, /^\/admin\/inbox(\/|$)/) ||   
-   isMatch(location.pathname, /^\/support-desk(\/|$)/); 
+    isMatch(location.pathname, /^\/support(\/|$)/) ||
+    isMatch(location.pathname, /^\/admin\/inbox(\/|$)/) ||
+    isMatch(location.pathname, /^\/support-desk(\/|$)/);
 
   const isAlertsActive = isMatch(location.pathname, /^\/admin\/alerts(\/|$)/);
 
@@ -654,7 +727,7 @@ const Navbar = () => {
                   {user.name?.charAt(0)?.toUpperCase() ?? "U"}
                 </div>
                 <span className="nav-user">
-                  Hola, {capitalizeInitials(user.name)}
+                  Bienvenido, {capitalizeInitials(user.name)}
                 </span>
                 <button
                   onClick={() => {
@@ -776,15 +849,19 @@ const Navbar = () => {
                   <path d="M15.5 14h-.79l-.28-.27A6.5 6.5 0 1 0 14 15.5l.27.28v.79L20 21l1-1-5.5-5.5zM5 10.5A5.5 5.5 0 1 1 10.5 16 5.51 5.51 0 0 1 5 10.5z" />
                 </svg>
               </button>
-              <button
-                className="icon-btn"
-                onClick={handleWishlist}
-                aria-label="Favoritos"
+              <Link
+                to="/favorites"
+                className="icon-btn cart-btn"
+                aria-label="Carrito"
+                onClick={() => setDrawerOpen(false)}
               >
                 <svg viewBox="0 0 24 24">
                   <path d="M12 21s-6.716-4.35-9.33-7.12C.5 11.6 1.09 8.16 3.64 6.84A4.86 4.86 0 0 1 12 8.17a4.86 4.86 0 0 1 8.36-1.33c2.55 1.32 3.14 4.76.97 7.04C18.716 16.65 12 21 12 21z" />
                 </svg>
-              </button>
+                {totalItems > 0 && (
+                  <span className="cart-badge">{totalItems}</span>
+                )}
+              </Link>
               <Link
                 to="/cart"
                 className="icon-btn cart-btn"
@@ -903,10 +980,10 @@ const Navbar = () => {
             {user && (
               <>
                 <Link
-                  to="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    showToast("Perfil estará disponible pronto.", "info");
+                  to="/profile"
+                  onClick={() => {
+                    setDrawerOpen(false);
+                    setMobileOpenIndex(null);
                   }}
                   className={`drawer-link support-mobile ${
                     isSupportActive ? "active" : ""

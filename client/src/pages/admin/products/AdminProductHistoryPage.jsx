@@ -194,7 +194,7 @@ const AdminProductHistoryPage = () => {
 
   // ===================== UI =====================
   return (
-    <div className="history-container">
+    <div className="ao ">
       <div className="header-row">
         <h2>Historial del producto</h2>
         <button
@@ -205,7 +205,7 @@ const AdminProductHistoryPage = () => {
         </button>
       </div>
 
-      <div className="filters">
+      <div className="af">
         <label>
           Desde:
           <input
@@ -251,15 +251,15 @@ const AdminProductHistoryPage = () => {
             <div className="card-header">
               <h3>Historial por Variante (stock/estado)</h3>
               <div className="actions">
-                <button onClick={exportLedgerPDF} className="btn">
+                <button onClick={exportLedgerPDF} className="btn btn--primary">
                   Exportar PDF
                 </button>
-                <button onClick={exportLedgerCSV} className="btn">
-                  Exportar CSV
+                <button onClick={exportLedgerCSV} className="btn btn--detail">
+                  Exportar Excel
                 </button>
               </div>
             </div>
-            <table className="history-table">
+            <table className=" table table-wrap">
               <thead>
                 <tr>
                   <th>Fecha</th>
@@ -307,15 +307,15 @@ const AdminProductHistoryPage = () => {
             <div className="card-header">
               <h3>Historial de Ventas</h3>
               <div className="actions">
-                <button onClick={exportSalesPDF} className="btn">
+                <button onClick={exportSalesPDF} className="btn btn--primary">
                   Exportar PDF
                 </button>
-                <button onClick={exportSalesCSV} className="btn">
-                  Exportar CSV
+                <button onClick={exportSalesCSV} className="btn btn--detail">
+                  Exportar Excel
                 </button>
               </div>
             </div>
-            <table className="history-table">
+            <table className="table table-wrap">
               <thead>
                 <tr>
                   <th>Fecha</th>

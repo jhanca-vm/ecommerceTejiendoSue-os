@@ -146,7 +146,7 @@ export default function ProductList() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
+    <div className="ao">
       <HeroBlock
         onPrimaryClick={() => navigate("/tienda")}
         onSecondaryClick={() => navigate("/nosotros")}

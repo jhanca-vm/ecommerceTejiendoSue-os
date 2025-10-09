@@ -60,7 +60,7 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="login-container">
+    <div className="login-container ">
       <h2>Registro</h2>
 
       <form onSubmit={handleSubmit} noValidate>

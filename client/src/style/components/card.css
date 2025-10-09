@@ -1,0 +1,13 @@
+/* src/style/components/card.css */
+.card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+  padding: var(--space-3);
+}
+
+.card--soft {
+  background: var(--color-surface-2);
+  border-style: dashed;
+}

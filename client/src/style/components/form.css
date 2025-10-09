@@ -1,0 +1,28 @@
+/* src/style/components/form.css */
+.input,
+.select {
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid #e3d7c7;
+  padding: 0.35rem 0.5rem;
+  outline: none;
+  background: var(--color-white);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.form-field label {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #3a3a3a;
+}
+

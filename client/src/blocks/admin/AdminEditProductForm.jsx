@@ -374,8 +374,8 @@ const AdminEditProductForm = ({ productId, token, onSuccess, showToast }) => {
   };
 
   return (
-    <div className="form-container">
-      <h2>Editar Producto</h2>
+    <div className="ao">
+      <h1>Editar Producto</h1>
       <form
         onSubmit={handleSubmit}
         className="product-form"

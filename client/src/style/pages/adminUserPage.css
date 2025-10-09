@@ -1,0 +1,134 @@
+/* src/style/pages/adminUsers.css */
+/* Usa tokens globales; sin :root aquí. */
+
+.admin-users {
+  padding: var(--space-4);
+}
+
+/* Header */
+.admin-users__header {
+  display: grid;
+  gap: var(--space-3);
+  align-items: center;
+  grid-template-columns: 1fr;
+  margin-bottom: var(--space-4);
+}
+
+/* Filtros */
+.admin-users .filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.admin-users .filters input[type="search"],
+.admin-users .filters select {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  outline: none;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.admin-users .filters input[type="search"]:focus,
+.admin-users .filters select:focus {
+  border-color: #d9c5a3;
+  box-shadow: 0 0 0 3px rgba(233, 209, 174, 0.35);
+}
+
+/* Tabla */
+.admin-users__tableWrap {
+  overflow: auto;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+.admin-users__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  min-width: 760px;
+}
+.admin-users__table th,
+.admin-users__table td {
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid #f1f1f1;
+  vertical-align: middle;
+}
+.admin-users__table th {
+  text-align: left;
+  background: var(--color-surface-2);
+  font-weight: var(--font-weight-bold);
+  color: #2b2b2b;
+}
+
+/* Badges locales (si no usas el componente global) */
+.badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-semibold);
+  display: inline-block;
+}
+.badge--ok {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border: 1px solid var(--color-success-border);
+}
+.badge--warn {
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+  border: 1px solid var(--color-warn-border);
+}
+
+/* Paginación */
+.admin-users__pager {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  align-items: center;
+  margin-top: var(--space-4);
+}
+
+/* Skeleton */
+.skeleton {
+  padding: 2rem;
+  text-align: center;
+  color: #777;
+}
+
+/* ====== Responsividad ====== */
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .admin-users { padding: var(--space-3); }
+  .admin-users__header {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2);
+  }
+  .admin-users__table { min-width: 680px; }
+}
+
+/* Móvil */
+@media (max-width: 720px) {
+  .admin-users { padding: var(--space-3); }
+  .admin-users__header {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+  .admin-users .filters {
+    gap: var(--space-2);
+  }
+  .admin-users .filters input[type="search"],
+  .admin-users .filters select {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+  .admin-users__table { min-width: 600px; }
+}
+
+/* Micro-ajustes móviles pequeños */
+@media (max-width: 480px) {
+  .btn { padding: 0.4rem 0.6rem; }
+  .btn--sm { padding: 0.3rem 0.5rem; }
+}

@@ -1,0 +1,141 @@
+/* src/style/pages/adminOrderDetail.css */
+/* Página apoyada en tokens globales + componentes. Sin :root aquí. */
+
+/* ===== Shell ===== */
+.admin-order-detail {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 1.2rem 1rem 2rem;
+  color: var(--color-text);
+}
+
+/* ===== Secciones ===== */
+/* En el HTML añade class="card section" (recomendado) */
+.section {
+  padding: 0.9rem; /* override suave sobre .card */
+  margin-bottom: 1rem;
+}
+.section__title {
+  margin: 0 0 0.6rem 0;
+  font-weight: var(--font-weight-bold);
+  color: #2b2b2b;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.section .icon {
+  opacity: 0.75;
+}
+
+/* ===== Campos simples ===== */
+.field {
+  margin: 0.15rem 0;
+}
+.field strong {
+  color: #333;
+}
+
+/* ===== Acciones arriba (PDF) ===== */
+.actions-top {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0.4rem 0 1rem;
+}
+
+/* ===== Filas de acciones ===== */
+.actions-row,
+.nav-row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.nav-row {
+  margin-top: 0.6rem;
+}
+
+/* ===== Tabla de ítems ===== */
+/* Usa el componente de tabla: table-wrap + table */
+.table-responsive {
+  /* alias para compatibilidad */
+  composes: table-wrap from "../components/table.css";
+}
+.table {
+  composes: table from "../components/table.css";
+  min-width: 760px;
+}
+
+/* ===== Totales ===== */
+.total-label {
+  text-align: right;
+}
+.total-value {
+  color: #1e1e1e;
+}
+
+/* ===== Mini-tabla variante dentro de la celda ===== */
+.variant-cell {
+  padding: 0 0.6rem;
+}
+
+.variant-mini-table {
+  width: 100%;
+  border: 1px solid #eae0cd;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #fffef9;
+}
+.variant-mini-table th {
+  background: #f6efdf;
+  color: #5a513f;
+  font-weight: var(--font-weight-bold);
+  font-size: 0.9rem;
+  padding: 0.35rem 0.45rem;
+  border-bottom: 1px solid #eae0cd;
+}
+.variant-mini-table td {
+  padding: 0.35rem 0.45rem;
+}
+
+/* ===== Botones ===== */
+/* Usa las variantes globales: .btn, .btn--primary, .btn--ghost, etc.
+   Aquí solo afinamos detalles contextuales si hace falta. */
+.btn .icon {
+  font-size: 1rem;
+}
+
+/* ===== Loading simple ===== */
+.loading {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 1.2rem 1rem 2rem;
+  color: var(--color-muted);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .table {
+    min-width: 680px;
+  }
+}
+
+@media (max-width: 720px) {
+  .actions-top,
+  .actions-row,
+  .nav-row {
+    gap: 0.4rem;
+  }
+  .table {
+    min-width: 640px;
+  }
+}
+
+/* Micro-ajustes muy pequeños */
+@media (max-width: 480px) {
+  .section {
+    padding: 0.75rem;
+  }
+  .section__title {
+    gap: 0.35rem;
+  }
+}

@@ -1,0 +1,76 @@
+/* src/style/components/button.css */
+.btn {
+  height: 40px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--dur-1) var(--ease),
+    filter var(--dur-1) var(--ease), background var(--dur-2) var(--ease);
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Variantes */
+.btn--primary {
+  background: linear-gradient(90deg, var(--color-brand), var(--color-brand-2));
+  color: var(--color-white);
+  box-shadow: var(--shadow-sm);
+}
+.btn--primary:hover {
+  filter: brightness(1.05);
+}
+
+.btn--ghost {
+  background: var(--color-white);
+  border-color: #eadcc5;
+  color: var(--color-brand);
+}
+.btn--ghost:hover {
+  background: #faf3e8;
+}
+
+.btn--dark {
+  background: #2e2e2e;
+  color: var(--color-white);
+}
+.btn--dark:hover {
+  filter: brightness(1.06);
+}
+
+.btn--danger {
+  background: var(--color-danger-soft-bg);
+  border: 1px solid var(--color-danger-soft-border);
+  color: #b33a19;
+}
+.btn--danger:hover {
+  background: #ffe7e0;
+}
+
+/* Botón detalle (tu variante) */
+.btn--detail {
+  background: var(--color-white);
+  color: #2b2b2b;
+  border: 1px solid #eadcc5;
+  border-radius: var(--radius-xl);
+  height: 40px;
+  padding: 0 calc(var(--space-3) + 2px);
+  font-weight: var(--font-weight-bold);
+  box-shadow: var(--shadow-sm);
+}
+.btn--detail:hover {
+  background: #faf3e8;
+  border-color: #e3d6bf;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.btn--detail:active {
+  transform: translateY(0);
+}

@@ -1,24 +1,15 @@
-:root {
-  --crema: #fbf3e6;
-  --crema-2: #f5ebdc;
-  --texto: #2e2e2e;
-  --panela: #7a3e15;
-  --caramelo: #c8672a;
-  --iraca: #b18b5c;
-  --white: #fff;
-  --line: #eee1cd;
-  --maxw: 1160px;
-  --shadow: 0 6px 22px rgba(0, 0, 0, 0.08);
-}
+/* src/style/pages/footer.css */
+/* Usa tokens globales; sin :root aquí. */
 
 .site-footer {
-  background: var(--crema-2);
-  border-top: 1px solid var(--line);
+  background: var(--color-surface-2);
+  border-top: 1px solid var(--color-border);
   color: #3a3a3a;
 }
 
 .sf__container {
-  max-width: var(--maxw);
+  /* Si usas el helper .container en el HTML, puedes omitir estas 3 líneas */
+  max-width: var(--container-max);
   margin: 0 auto;
   padding: 1.6rem 1rem 1.2rem;
 }
@@ -33,21 +24,28 @@
 .sf__col {
 }
 
+/* Marca / títulos */
 .sf__title {
   font-family: "Merriweather", Georgia, serif;
-  font-weight: 800;
+  font-weight: var(--font-weight-bold);
   font-size: 1.05rem;
-  background: linear-gradient(90deg, var(--panela), #f7c86b 40%, var(--iraca));
+  background: linear-gradient(
+    90deg,
+    var(--color-brand),
+    #f7c86b 40%,
+    var(--color-accent)
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   margin: 0 0 0.5rem 0;
 }
 .sf__subtitle {
-  font-weight: 800;
+  font-weight: var(--font-weight-bold);
   color: #3a3a3a;
   margin: 0 0 0.6rem 0;
 }
+
 .sf__text {
   font-size: 0.95rem;
   color: #5a5a5a;
@@ -55,6 +53,7 @@
   max-width: 36ch;
 }
 
+/* Enlaces */
 .sf__links {
   list-style: none;
   margin: 0;
@@ -67,29 +66,32 @@
   color: #3a3a3a;
   font-weight: 600;
   padding: 0.2rem 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 .sf__links a:hover {
-  color: var(--panela);
+  color: var(--color-brand);
 }
 
+/* Sociales */
 .sf__socialRow {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.2rem;
 }
 
+/* Opción A: conservar tus estilos de “botón social” */
 .sf__social {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   border: 1px solid #eadcc5;
-  background: #fff;
+  background: var(--color-white);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: background 0.2s ease, transform 0.06s ease, border-color 0.2s ease;
+  transition: background var(--dur-2) var(--ease),
+    transform var(--dur-1) var(--ease), border-color var(--dur-2) var(--ease);
   color: #3a3a3a;
 }
 .sf__social:hover {
@@ -112,13 +114,19 @@
   pointer-events: none;
 }
 
+/* Opción B (recomendada): usar botón de componente
+   <a class="btn btn--icon" ...>…</a>
+   Si usas esta opción, puedes no usar .sf__social */
+
+/* Separador */
 .sf__rule {
   margin: 1.1rem 0 0.8rem;
   height: 1px;
   border: 0;
-  background: var(--line);
+  background: var(--color-border);
 }
 
+/* Fila inferior */
 .sf__bottom {
   display: flex;
   align-items: center;
@@ -135,7 +143,7 @@
   align-items: center;
   gap: 0.45rem;
   color: #555;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 .sf__visits svg {
   width: 18px;

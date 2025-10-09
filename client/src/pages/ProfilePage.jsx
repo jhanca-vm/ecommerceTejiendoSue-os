@@ -117,178 +117,171 @@ export default function ProfilePage() {
     );
 
   return (
-    <section className="profile">
+    <div className="profile__grid ao">
       <h1>Mi Perfil</h1>
+      <form onSubmit={onSaveInfo} className="card product-form">
+        <h2>Información</h2>
+        <label>
+          Nombre
+          <input
+            value={profile.name}
+            onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+          />
+        </label>
+        <label>
+          Email
+          <input value={profile.email} disabled />
+        </label>
+        <label>
+          Teléfono
+          <input
+            value={profile.phone || ""}
+            onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+          />
+        </label>
 
-      <div className="profile__grid">
-        <form onSubmit={onSaveInfo} className="card">
-          <h2>Información</h2>
+        <fieldset>
+          <legend>Dirección</legend>
           <label>
-            Nombre
+            Dirección 1
             <input
-              value={profile.name}
-              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-            />
-          </label>
-          <label>
-            Email
-            <input value={profile.email} disabled />
-          </label>
-          <label>
-            Teléfono
-            <input
-              value={profile.phone || ""}
+              value={profile.address.line1 || ""}
               onChange={(e) =>
-                setProfile({ ...profile, phone: e.target.value })
+                setProfile({
+                  ...profile,
+                  address: { ...profile.address, line1: e.target.value },
+                })
               }
             />
           </label>
-
-          <fieldset>
-            <legend>Dirección</legend>
-            <label>
-              Dirección 1
-              <input
-                value={profile.address.line1 || ""}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    address: { ...profile.address, line1: e.target.value },
-                  })
-                }
-              />
-            </label>
-            <label>
-              Dirección 2
-              <input
-                value={profile.address.line2 || ""}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    address: { ...profile.address, line2: e.target.value },
-                  })
-                }
-              />
-            </label>
-            <div className="row">
-              <label>
-                Ciudad
-                <input
-                  value={profile.address.city || ""}
-                  onChange={(e) =>
-                    setProfile({
-                      ...profile,
-                      address: { ...profile.address, city: e.target.value },
-                    })
-                  }
-                />
-              </label>
-              <label>
-                Provincia/Estado
-                <input
-                  value={profile.address.state || ""}
-                  onChange={(e) =>
-                    setProfile({
-                      ...profile,
-                      address: { ...profile.address, state: e.target.value },
-                    })
-                  }
-                />
-              </label>
-            </div>
-            <div className="row">
-              <label>
-                CP
-                <input
-                  value={profile.address.zip || ""}
-                  onChange={(e) =>
-                    setProfile({
-                      ...profile,
-                      address: { ...profile.address, zip: e.target.value },
-                    })
-                  }
-                />
-              </label>
-              <label>
-                País
-                <input
-                  value={profile.address.country || ""}
-                  onChange={(e) =>
-                    setProfile({
-                      ...profile,
-                      address: { ...profile.address, country: e.target.value },
-                    })
-                  }
-                />
-              </label>
-            </div>
-          </fieldset>
-
-          <button className="btn btn--primary" type="submit">
-            Guardar cambios
-          </button>
-        </form>
-
-        <div className="card">
-          <h2>Avatar</h2>
-          <div className="avatarRow">
-            <img
-              src={
-                profile.avatar.thumb
-                  ? `${base}${profile.avatar.thumb}`
-                  : "/placeholder.jpg"
+          <label>
+            Dirección 2
+            <input
+              value={profile.address.line2 || ""}
+              onChange={(e) =>
+                setProfile({
+                  ...profile,
+                  address: { ...profile.address, line2: e.target.value },
+                })
               }
-              alt="avatar"
             />
-            <div>
+          </label>
+          <div className="row">
+            <label>
+              Ciudad
               <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
+                value={profile.address.city || ""}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    address: { ...profile.address, city: e.target.value },
+                  })
+                }
               />
-              <button
-                className="btn"
-                type="button"
-                onClick={onUploadAvatar}
-                disabled={!avatarFile}
-              >
-                Subir
-              </button>
-            </div>
+            </label>
+            <label>
+              Provincia/Estado
+              <input
+                value={profile.address.state || ""}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    address: { ...profile.address, state: e.target.value },
+                  })
+                }
+              />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              CP
+              <input
+                value={profile.address.zip || ""}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    address: { ...profile.address, zip: e.target.value },
+                  })
+                }
+              />
+            </label>
+            <label>
+              País
+              <input
+                value={profile.address.country || ""}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    address: { ...profile.address, country: e.target.value },
+                  })
+                }
+              />
+            </label>
+          </div>
+        </fieldset>
+
+        <button className="btn btn--primary" type="submit">
+          Guardar cambios
+        </button>
+      </form>
+
+      <div className="card">
+        <h2>Avatar</h2>
+        <div className="avatarRow">
+          <img
+            src={
+              profile.avatar.thumb
+                ? `${base}${profile.avatar.thumb}`
+                : "/placeholder.jpg"
+            }
+            alt="avatar"
+          />
+          <div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
+            />
+            <button
+              className="btn"
+              type="button"
+              onClick={onUploadAvatar}
+              disabled={!avatarFile}
+            >
+              Subir
+            </button>
           </div>
         </div>
-
-        <form onSubmit={onChangePw} className="card">
-          <h2>Contraseña</h2>
-          <label>
-            Actual
-            <input
-              type="password"
-              value={pw.currentPassword}
-              onChange={(e) =>
-                setPw({ ...pw, currentPassword: e.target.value })
-              }
-            />
-          </label>
-          <label>
-            Nueva
-            <input
-              type="password"
-              value={pw.newPassword}
-              onChange={(e) => setPw({ ...pw, newPassword: e.target.value })}
-            />
-          </label>
-          <label>
-            Repetir nueva
-            <input
-              type="password"
-              value={pw.repeat}
-              onChange={(e) => setPw({ ...pw, repeat: e.target.value })}
-            />
-          </label>
-          <button className="btn btn--primary">Cambiar contraseña</button>
-        </form>
       </div>
-    </section>
+
+      <form onSubmit={onChangePw} className="card">
+        <h2>Contraseña</h2>
+        <label>
+          Actual
+          <input
+            type="password"
+            value={pw.currentPassword}
+            onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })}
+          />
+        </label>
+        <label>
+          Nueva
+          <input
+            type="password"
+            value={pw.newPassword}
+            onChange={(e) => setPw({ ...pw, newPassword: e.target.value })}
+          />
+        </label>
+        <label>
+          Repetir nueva
+          <input
+            type="password"
+            value={pw.repeat}
+            onChange={(e) => setPw({ ...pw, repeat: e.target.value })}
+          />
+        </label>
+        <button className="btn btn--primary">Cambiar contraseña</button>
+      </form>
+    </div>
   );
 }

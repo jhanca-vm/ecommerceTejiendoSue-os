@@ -305,7 +305,7 @@ const exportPDF = () => {
   };
 
   return (
-    <div className="p-4">
+    <div className="ao">
       <h2 className="text-xl font-bold mb-3">Historial general de ventas</h2>
 
       {/* Filtros (aplican solos) */}
@@ -317,7 +317,7 @@ const exportPDF = () => {
             type="month"
             value={month}
             onChange={(e) => {
-              const m = e.target.value; // YYYY-MM
+              const m = e.target.value;
               setMonth(m);
 
               // Sincroniza visualmente 'Desde' y 'Hasta' con el mes
@@ -387,24 +387,24 @@ const exportPDF = () => {
           </select>
         </div>
 
+        {/* Eliminar filtros */}
+        <button className="btn btn--ghost" onClick={handleClearFilters}>
+          Limpiar
+        </button>
+
         <button
-          className="btn"
+          className="btn btn--primary"
           onClick={exportPDF}
           disabled={!month && !!dateError}
         >
           Exportar PDF
         </button>
         <button
-          className="btn"
+          className="btn btn--dark"
           onClick={exportCSV}
           disabled={!month && !!dateError}
         >
-          Exportar CSV
-        </button>
-
-        {/* Eliminar filtros */}
-        <button className="btn" onClick={handleClearFilters}>
-          Eliminar filtros
+          Exportar Excel
         </button>
       </div>
 
@@ -420,13 +420,14 @@ const exportPDF = () => {
       {loading ? (
         <p>Cargando...</p>
       ) : (
-        <table className="admin-table">
+        <table className="table">
           <thead>
             <tr>
               <th>Fecha</th>
               <th>Usuario</th>
               <th>Producto</th>
-              <th>Variante</th>
+              <th>Talla</th>
+              <th>Color</th>
               <th>Precio unit.</th>
               <th>Cant.</th>
               <th>Total</th>
@@ -453,25 +454,8 @@ const exportPDF = () => {
                     <td>{toLocal(r.date)}</td>
                     <td>{r.userName || "Desconocido"}</td>
                     <td>{r.productName || "Producto eliminado"}</td>
-
-                    {/* Variante como mini-tabla dentro de la celda */}
-                    <td className="variant-cell">
-                      <table className="variant-mini-table">
-                        <thead>
-                          <tr>
-                            <th>Talla</th>
-                            <th>Color</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td>{r.sizeLabel || "?"}</td>
-                            <td>{r.colorName || "?"}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </td>
-
+                    <td> {r.sizeLabel || "?"} </td>
+                    <td> {r.colorName || "?"} </td>
                     <td>{formatCOP(unitPriceNum)}</td>
                     <td>{r.quantity ?? 0}</td>
                     <td>{formatCOP(totalNum)}</td>

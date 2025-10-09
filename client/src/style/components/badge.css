@@ -1,0 +1,40 @@
+/* src/style/components/badge.css */
+.badge {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-100);
+  padding: 0.28rem 0.6rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  text-transform: capitalize;
+}
+
+/* Estados comunes */
+.badge--pendiente {
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+  border-color: var(--color-warn-border);
+}
+
+.badge--facturado {
+  background: var(--color-bill-bg);
+  color: var(--color-bill-text);
+  border-color: var(--color-bill-border);
+}
+
+.badge--enviado {
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+  border-color: var(--color-info-border);
+}
+
+.badge--entregado {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-color: var(--color-success-border);
+}
+
+.badge--cancelado {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-border);
+}

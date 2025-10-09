@@ -107,7 +107,7 @@ const AdminDashboardPage = () => {
   // ====== Estado vacío (stats válidas pero sin datos) ======
   if (stats && isStatsEmpty) {
     return (
-      <div className="dashboard-page">
+      <div className="dashboard-page ">
         <DashboardHeaderBlock />
         <DashboardFilters onFilterChange={setFilters} />
 

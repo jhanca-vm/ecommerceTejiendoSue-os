@@ -1,3 +1,5 @@
+/* src/index */
+/*
 @import url("../src/style/adminCategoryPage.css");
 @import url("../src/style/adminDashboard.css");
 @import url("../src/style/AdminDashboardPage.css");
@@ -36,4 +38,38 @@
 @import url("../src/style/supportChatBlock.css");
 @import url("../src/style/toast.css");
 @import url("../src/style/registerProductpage.css");
-@import url("../src/style/userAdminPage.css");
+@import url("../src/style/userAdminPage.css");*/
+
+
+/* 1) Tokens */
+
+@import url("./style/base/tokens.css");
+
+/* 2) Base */
+@import url("./style/base/base.css");
+
+/* 3) Componentes */
+@import url("./style/components/button.css");
+@import url("./style/components/badge.css");
+@import url("./style/components/card.css");
+@import url("./style/components/table.css");
+@import url("./style/components/form.css");
+@import url("./style/components/toast.css");
+
+/* 4) Utilidades */
+@import url("./style/base/utilities.css");
+
+/* 5) Páginas (solo layout/ajustes específicos) */
+@import url("./style/pages/adminAlertPage.css");
+@import url("./style/pages/adminDashboard.css");
+@import url("./style/pages/adminListManages.css");
+@import url("./style/pages/adminOrder.css");
+@import url("./style/pages/adminOrderDetailPage.css");
+@import url("./style/pages/adminProductManager.css");
+@import url("./style/pages/adminUserPage.css");
+@import url("./style/pages/footer.css");
+@import url("./style/pages/navbar.css");
+@import url("./style/pages/profilePage.css");
+@import url("./style/pages/registerProductPage.css");
+
+/* 6) pruebas con los estilos antiguos*/

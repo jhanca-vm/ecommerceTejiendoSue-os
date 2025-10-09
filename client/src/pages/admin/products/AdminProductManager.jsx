@@ -236,12 +236,12 @@ const AdminProductPage = () => {
   };
 
   return (
-    <div className="admin-products">
+    <div className="admin-products ao ">
       <div className="header ao__head">
         <h1>Administrar Productos</h1>
       </div>
 
-      <div className="toolbar">
+      <div className="toolbar af">
         <input
           type="text"
           placeholder="Buscar por nombre o categoría..."

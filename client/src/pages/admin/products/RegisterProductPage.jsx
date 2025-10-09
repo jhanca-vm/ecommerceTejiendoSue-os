@@ -48,7 +48,7 @@ const RegisterProductPage = () => {
   };
 
   return (
-    <div className="form-container">
+    <div className="form-container ao">
       <h2>Nuevo Producto</h2>
       <RegisterProductForm categories={categories} onSubmit={handleSubmit} />
     </div>

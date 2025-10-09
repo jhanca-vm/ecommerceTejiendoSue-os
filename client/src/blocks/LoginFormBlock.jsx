@@ -54,9 +54,9 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="login-container">
+    <div className="ao">
       <h2>Iniciar sesión</h2>
-      <form onSubmit={handleLogin}>
+      <form onSubmit={handleLogin} >
         <input
           type="email"
           placeholder="Correo electrónico"

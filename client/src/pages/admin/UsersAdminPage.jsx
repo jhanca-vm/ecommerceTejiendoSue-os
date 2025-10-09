@@ -83,119 +83,126 @@ export default function AdminUsersPage() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <section className="admin-users">
-      <h1>Usuarios</h1>
+    <div className="ao">
+      <section className=" ">
+        <h1>Usuarios</h1>
 
-      <div className="filters">
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nombre o email…"
-        />
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="all">Rol: todos</option>
-          <option value="user">Usuario</option>
-          <option value="admin">Administrador</option>
-        </select>
-        <select value={verified} onChange={(e) => setVerified(e.target.value)}>
-          <option value="all">Verificación: todos</option>
-          <option value="1">Verificados</option>
-          <option value="0">No verificados</option>
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)}>
-          <option value="createdAt:desc">Recientes primero</option>
-          <option value="createdAt:asc">Antiguos primero</option>
-          <option value="name:asc">Nombre A→Z</option>
-          <option value="name:desc">Nombre Z→A</option>
-          <option value="email:asc">Email A→Z</option>
-          <option value="email:desc">Email Z→A</option>
-        </select>
-        <select
-          value={limit}
-          onChange={(e) => setLimit(Number(e.target.value))}
-        >
-          <option value={10}>10 / pág</option>
-          <option value={20}>20 / pág</option>
-          <option value={50}>50 / pág</option>
-          <option value={100}>100 / pág</option>
-        </select>
-      </div>
+        <div className="filters af">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar por nombre o email…"
+          />
+          <select value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="all">Rol: todos</option>
+            <option value="user">Usuario</option>
+            <option value="admin">Administrador</option>
+          </select>
+          <select
+            value={verified}
+            onChange={(e) => setVerified(e.target.value)}
+          >
+            <option value="all">Verificación: todos</option>
+            <option value="1">Verificados</option>
+            <option value="0">No verificados</option>
+          </select>
+          <select value={sort} onChange={(e) => setSort(e.target.value)}>
+            <option value="createdAt:desc">Recientes primero</option>
+            <option value="createdAt:asc">Antiguos primero</option>
+            <option value="name:asc">Nombre A→Z</option>
+            <option value="name:desc">Nombre Z→A</option>
+            <option value="email:asc">Email A→Z</option>
+            <option value="email:desc">Email Z→A</option>
+          </select>
+          <select
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+          >
+            <option value={10}>10 / pág</option>
+            <option value={20}>20 / pág</option>
+            <option value={50}>50 / pág</option>
+            <option value={100}>100 / pág</option>
+          </select>
+        </div>
 
-      <div className="summary">
-        {loading ? "Cargando…" : `Total: ${total} usuarios`}
-      </div>
+        <div className="summary">
+          {loading ? "Cargando…" : `Total: ${total} usuarios`}
+        </div>
 
-      <div className="tableWrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Email</th>
-              <th>Rol</th>
-              <th>Verificado</th>
-              <th>Creado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+        <div className="tableWrap">
+          <table className="table table-wrap ">
+            <thead>
               <tr>
-                <td colSpan={5}>Cargando…</td>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Verificado</th>
+                <th>Creado</th>
               </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={5}>Sin resultados</td>
-              </tr>
-            ) : (
-              items.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.name}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        u.role === "admin" ? "badge--admin" : "badge--user"
-                      }`}
-                    >
-                      {u.role}
-                    </span>
-                  </td>
-                  <td>
-                    {u.isVerified ? (
-                      <span className="badge badge--ok">Sí</span>
-                    ) : (
-                      <span className="badge badge--warn">No</span>
-                    )}
-                  </td>
-                  <td>
-                    {u.createdAt ? new Date(u.createdAt).toLocaleString() : "-"}
-                  </td>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={5}>Cargando…</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>Sin resultados</td>
+                </tr>
+              ) : (
+                items.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.name}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          u.role === "admin" ? "badge--admin" : "badge--user"
+                        }`}
+                      >
+                        {u.role}
+                      </span>
+                    </td>
+                    <td>
+                      {u.isVerified ? (
+                        <span className="badge badge--ok">Sí</span>
+                      ) : (
+                        <span className="badge badge--warn">No</span>
+                      )}
+                    </td>
+                    <td>
+                      {u.createdAt
+                        ? new Date(u.createdAt).toLocaleString()
+                        : "-"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-      <div className="pager">
-        <button
-          className="btn btn--ghost"
-          disabled={page <= 1 || loading}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          ← Anterior
-        </button>
-        <span>
-          Pág. {page} / {totalPages}
-        </span>
-        <button
-          className="btn btn--ghost"
-          disabled={page >= totalPages || loading}
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-        >
-          Siguiente →
-        </button>
-      </div>
-    </section>
+        <div className="pager">
+          <button
+            className="btn btn--ghost"
+            disabled={page <= 1 || loading}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            ← Anterior
+          </button>
+          <span>
+            Pág. {page} / {totalPages}
+          </span>
+          <button
+            className="btn btn--ghost"
+            disabled={page >= totalPages || loading}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Siguiente →
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }

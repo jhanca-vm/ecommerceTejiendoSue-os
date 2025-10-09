@@ -1,0 +1,213 @@
+/* src/style/pages/adminListManage.css */
+/* Usa tokens globales; sin :root aquí. */
+
+/* ===== Contenedor ===== */
+.alm-container {
+  max-width: 960px;
+  margin: clamp(12px, 4vh, 32px) auto;
+  padding: 1rem;
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text);
+}
+
+.alm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.alm-header h2 {
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+  color: #2b2b2b;
+}
+.alm-badge {
+  display: inline-block;
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: #fff7e6;
+  color: #9a6b1e;
+  border: 1px solid #f1ddba;
+  font-weight: var(--font-weight-bold);
+  font-size: 0.88rem;
+}
+
+/* ===== Form fila superior ===== */
+.alm-form-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.9rem;
+}
+.alm-form-row input[type="text"] {
+  flex: 1 1 260px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  border: 1px solid #e3d7c7;
+  padding: 0.45rem 0.75rem;
+  background: var(--color-white);
+  outline: none;
+  transition: border-color var(--dur-1) var(--ease),
+    box-shadow var(--dur-1) var(--ease);
+}
+.alm-form-row input[type="text"]:focus {
+  border-color: #d9c5a3;
+  box-shadow: 0 0 0 3px rgba(233, 209, 174, 0.35);
+}
+
+/* ===== Tabla ===== */
+.alm-table-wrap {
+  overflow: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid #efe4cf;
+}
+.alm-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-white);
+}
+.alm-table thead th {
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  background: var(--color-surface-2);
+  color: #3a3a3a;
+  border-bottom: 1px solid #efe4cf;
+  font-weight: var(--font-weight-bold);
+}
+.alm-table tbody td {
+  padding: 0.65rem 0.8rem;
+  border-bottom: 1px solid #f2e9d8;
+  vertical-align: middle;
+}
+.alm-table tbody tr:hover {
+  background: #fffdf7;
+}
+.alm-table input[type="text"] {
+  width: 100%;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  border: 1px solid #e3d7c7;
+  padding: 0.4rem 0.6rem;
+}
+.alm-item-text {
+  font-weight: var(--font-weight-bold);
+  color: #413a2b;
+}
+.col-actions {
+  width: 190px;
+}
+.empty-row {
+  text-align: center;
+  color: #7c745f;
+}
+
+/* ===== Botones ===== */
+.btn {
+  height: 44px;
+  border-radius: var(--radius-lg);
+  border: 1px solid #eadcc5;
+  background: var(--color-white);
+  color: #2b2b2b;
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease),
+    box-shadow var(--dur-2) var(--ease), background var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease);
+  box-shadow: var(--shadow-sm);
+  padding: 0 0.9rem;
+}
+.btn:hover {
+  background: #faf3e8;
+  border-color: #e3d6bf;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn--primary {
+  background: linear-gradient(90deg, var(--color-brand), var(--color-brand-2));
+  border-color: transparent;
+  color: var(--color-white);
+}
+.btn--muted {
+  background: #f6f1e7;
+}
+.btn--ghost {
+  background: var(--color-white);
+}
+.btn--danger {
+  background: #fff3f2;
+  color: #8b1f1f;
+  border-color: #f0c7c2;
+}
+.btn--danger:hover {
+  background: #ffe9e7;
+  border-color: #efb0a9;
+}
+.btn-sm {
+  height: 36px;
+  padding: 0 0.7rem;
+}
+
+/* ===== Acciones celda ===== */
+.actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+/* ===== Modal confirm ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+.modal-card {
+  width: min(480px, 92vw);
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 1rem;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+}
+.modal-card h3 {
+  margin: 0.2rem 0 0.4rem;
+  font-weight: var(--font-weight-bold);
+  color: #2b2b2b;
+}
+.modal-card p {
+  margin: 0.2rem 0 0.8rem;
+  color: #4b4436;
+}
+.modal-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 720px) {
+  .alm-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .alm-form-row input[type="text"] {
+    flex: 1 1 100%;
+  }
+  .col-actions {
+    width: 160px;
+  }
+}

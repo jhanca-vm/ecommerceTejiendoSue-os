@@ -134,7 +134,7 @@ const ProductListBlocks = ({ product, onAddToCart }) => {
           />
         </div>
 
-        <button className="plb__cta" onClick={handleAdd} type="button">
+        <button className="plb__cta btn--primary" onClick={handleAdd} type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M7 4h-2l-1 2v2h2l3.6 7.59L8.24 18H19v-2H9.42l1.1-2h6.45a2 2 0 0 0 1.79-1.11L21 7H6.21l-.94-2H3" />
           </svg>

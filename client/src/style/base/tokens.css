@@ -52,6 +52,33 @@
   --color-danger-soft-bg: #fff3f0;
   --color-danger-soft-border: #ffd2c6;
 
+    /* Gradientes y estados */
+  --gradient-brand: linear-gradient(90deg, var(--color-brand), var(--color-brand-2));
+  --gradient-accent: linear-gradient(90deg, var(--color-brand), var(--color-accent));
+
+  --color-info-bg: #e9f2ff;
+  --color-info-text: #1e60b6;
+  --color-info-border: #cfe2ff;
+
+  --color-success-bg: #e9f8ee;
+  --color-success-text: #247a3a;
+  --color-success-border: #ccefd7;
+
+  --color-warn-bg: #fff7e8;
+  --color-warn-text: #8a5a00;
+  --color-warn-border: #ffe3b3;
+
+  --color-bill-bg: #f1cd67;
+  --color-bill-text: #7c500d;
+  --color-bill-border: #eb9a10;
+
+  --color-danger-bg: #f7e9ec;
+  --color-danger-text: #8b1f3f;
+  --color-danger-border: #f2c7d1;
+
+  --color-danger-soft-bg: #fff3f0;
+  --color-danger-soft-border: #ffd2c6;
+
   /* Tipografía */
   --font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   --font-weight-bold: 800;

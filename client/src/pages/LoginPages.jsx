@@ -1,3 +1,4 @@
+// src/pages/LoginPages.jsx
 import LoginForm from "../blocks/LoginFormBlock";
 
 const LoginPage = () => {

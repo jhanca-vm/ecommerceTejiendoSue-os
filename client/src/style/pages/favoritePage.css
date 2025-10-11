@@ -1,0 +1,269 @@
+/* ===============================
+   Favoritos – Grid compacto y responsivo
+=================================*/
+
+.favorites-page {
+  /* densidad por defecto en móvil */
+  --fg-gap: 12px;
+  --fg-thumb-h: 170px; /* alto del thumbnail en móvil */
+  --fg-title: 0.95rem;
+  --fg-text: 0.85rem;
+}
+
+.favorites-page h1 {
+  font-size: 1.35rem;
+  margin: 0 0 0.75rem;
+  color: var(--color-text);
+}
+
+/* GRID: 2 cols móvil, 3 cols tablet, 4 cols desktop */
+.favorites-page .product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--fg-gap);
+}
+
+@media (min-width: 640px) {
+  .favorites-page .product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    --fg-thumb-h: 190px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .favorites-page .product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px; 
+    --fg-thumb-h: 210px; 
+  }
+}
+
+/* (ultra-compacto) pantallas muy chicas */
+@media (max-width: 360px) {
+  .favorites-page {
+    --fg-thumb-h: 150px;
+    --fg-title: 0.9rem;
+    --fg-text: 0.8rem;
+  }
+}
+
+/* ===============================
+   Tarjeta compacta dentro de favoritos
+   (reutiliza clases de ProductListBlocks)
+=================================*/
+
+.favorites-page .plb {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 10px;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-1) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+.favorites-page .plb:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Media: misma anchura, altura fija para alinear “fila” */
+.favorites-page .plb__media {
+  position: relative;
+  height: var(--fg-thumb-h);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+.favorites-page .plb__imageLink {
+  display: block;
+  height: 100%;
+}
+.favorites-page .plb__image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover; 
+}
+
+/* Meta/título/price más compactos */
+.favorites-page .plb__body {
+  padding: 10px 8px 12px;
+  display: grid;
+  gap: 8px;
+}
+.favorites-page .plb__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--fg-text);
+  gap: 8px;
+}
+.favorites-page .plb__title {
+  font-size: var(--fg-title);
+  line-height: 1.25;
+  color: var(--color-text);
+  margin: 2px 0 0;
+  text-decoration: none;
+  display: -webkit-box;
+  -webkit-line-clamp: 2; 
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.favorites-page .plb__priceRow .plb-price,
+.favorites-page .plb__priceRow .price {
+  font-size: 1rem;
+}
+
+/* CTA compacta */
+.favorites-page .plb__cta {
+  font-size: 0.85rem;
+  height: 40px;
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 0;
+  background: var(--gradient-brand);
+  color: #fff;
+  font-weight: var(--font-weight-bold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  box-shadow: var(--shadow-sm);
+  transition: filter var(--dur-2) var(--ease), transform 80ms var(--ease);
+}
+.favorites-page .plb__cta:hover {
+  filter: brightness(1.05);
+}
+.favorites-page .plb__cta:active {
+  transform: translateY(1px) scale(0.99);
+}
+.favorites-page .plb__cta svg {
+  width: 18px;
+  height: 18px;
+}
+.favorites-page .plb__cta svg path {
+  fill: #fff;
+}
+
+/* Badge descuento más discreto */
+.favorites-page .plb__badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: var(--color-success-text);
+  color: #fff;
+  font-weight: var(--font-weight-bold);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* ===============================
+   Botón de favorito (corazón)
+=================================*/
+
+/* Contenedor absoluto en card */
+.plb__fav {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-white) 90%, transparent);
+  border: 1px solid var(--color-border);
+  backdrop-filter: saturate(140%) blur(2px);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  place-items: center;
+  transition: background var(--dur-2) var(--ease), transform 80ms var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+.plb__fav:hover {
+  background: var(--color-white);
+  box-shadow: var(--shadow-md);
+}
+
+/* Botón interno (si tu componente aplica .fav-btn) */
+.fav-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease);
+}
+.fav-btn:hover {
+  transform: translateY(-1px);
+}
+.fav-btn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Estado por defecto: solo trazo */
+.fav-btn path {
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 2;
+  transition: fill var(--dur-2) var(--ease), stroke var(--dur-2) var(--ease);
+}
+
+/* Activo: relleno+trazo “peligro/sentiment” del sistema */
+.fav-btn.is-active path {
+  fill: var(--color-danger-text);
+  stroke: var(--color-danger-text);
+}
+
+/* Hover activo: un poco más intenso usando brand-2 como matiz */
+.fav-btn.is-active:hover path {
+  fill: color-mix(in srgb, var(--color-danger-text) 85%, var(--color-brand-2));
+  stroke: color-mix(
+    in srgb,
+    var(--color-danger-text) 85%,
+    var(--color-brand-2)
+  );
+}
+
+/* Focus accesible */
+.fav-btn:focus-visible {
+  outline: 2px solid
+    color-mix(in srgb, var(--color-brand-2) 60%, var(--color-brand) 40%);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px
+    color-mix(in srgb, var(--color-brand-2) 20%, transparent);
+}
+
+/* Deshabilitado */
+.fav-btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.fav-btn.is-disabled:hover {
+  transform: none;
+}
+
+/* Quitamos “aire” extra vertical entre media y contenido */
+.favorites-page .plb__body {
+  margin-top: 6px;
+}
+
+/* Reducir aún más el gap general en sobremesa si quieres máxima densidad */
+@media (min-width: 1280px) {
+  .favorites-page .product-grid {
+    gap: 12px;
+  }
+}
+
+/* ===============================
+   Estado vacío / textos
+=================================*/
+.favorites-page p {
+  color: var(--color-muted);
+}

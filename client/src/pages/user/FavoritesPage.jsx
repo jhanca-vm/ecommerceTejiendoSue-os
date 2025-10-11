@@ -1,3 +1,4 @@
+// src/pages/user/FavoritesPage.jsx
 import { useEffect, useState, useContext } from "react";
 import { AuthContext } from "../../contexts/AuthContext";
 import api from "../../api/apiClient";
@@ -101,7 +102,7 @@ export default function FavoritesPage() {
   }
 
   return (
-    <section className="favorites-page">
+    <section className="favorites-page ao">
       <h1>Mis Favoritos</h1>
       {items.length === 0 ? (
         <p>No tienes productos en favoritos.</p>

@@ -1,3 +1,4 @@
+// src/contexts/LoadingContext.jsx
 import {
   createContext,
   useContext,
@@ -100,6 +101,29 @@ export function LoadingProvider({
     }
   }, [pending]);
 
+  // Fail-safe: si pending > 0 por demasiado tiempo sin cambios, resetea
+  useEffect(() => {
+    let t = null;
+    if (pending > 0) {
+      t = setTimeout(() => {
+        // corta el overlay si quedó pegado
+        setPending(0);
+        setVisible(false);
+      }, 15000); // 15s; ajústalo si quieres
+    }
+    return () => t && clearTimeout(t);
+  }, [pending]);
+
+  // Opcional: si llega un "flush" (cancelAllActiveRequests), resetea de inmediato
+  useEffect(() => {
+    const onFlush = () => {
+      setPending(0);
+      setVisible(false);
+    };
+    window.addEventListener("http:flush", onFlush);
+    return () => window.removeEventListener("http:flush", onFlush);
+  }, []);
+
   // Si cambiamos de ruta, reseteamos loader
   useEffect(() => {
     setPending(0);
@@ -115,6 +139,7 @@ export function LoadingProvider({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useLoading() {
   return useContext(LoadingContext);
 }

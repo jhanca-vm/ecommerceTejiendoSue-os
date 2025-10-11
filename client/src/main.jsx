@@ -1,3 +1,4 @@
+// src/
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -14,18 +15,18 @@ import { AdminAlertsProvider } from "./contexts/AdminAlertsContext";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <ToastProvider>
-      <AuthProvider>
-        <CartProvider>
-          <SupportProvider>
-            <FavoriteProvider>
-              <AdminAlertsProvider>
-                <App />
-              </AdminAlertsProvider>
-            </FavoriteProvider>
-          </SupportProvider>
-        </CartProvider>
-      </AuthProvider>
-    </ToastProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <CartProvider>
+            <SupportProvider>
+              <FavoriteProvider>
+                <AdminAlertsProvider>
+                  <App />
+                </AdminAlertsProvider>
+              </FavoriteProvider>
+            </SupportProvider>
+          </CartProvider>
+        </AuthProvider>
+      </ToastProvider>
   </StrictMode>
 );

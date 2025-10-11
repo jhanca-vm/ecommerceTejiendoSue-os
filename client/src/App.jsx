@@ -1,4 +1,4 @@
-// src/App
+// src/App.jsx
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -7,8 +7,12 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import GlobalHttpHandler from "./components/GlobalHttpHandler";
 
-import api, { API_BASE_URL } from "./api/apiClient";
+import api from "./api/apiClient";
 import { setCsrfToken } from "./api/csrfStore";
+
+/* Loader context */
+import { LoadingProvider } from "./contexts/LoadingContext";
+import LoadingOverlay from "./components/LoadingOverlay";
 
 /* Páginas públicas */
 import ProductListPage from "./pages/ProductListPage";
@@ -44,14 +48,13 @@ import AdminColorsPage from "./pages/admin/products/AdminColorsPages";
 import AdminDashboarPage from "./pages/admin/AdminDashboardPage";
 import ProductHistoryPage from "./pages/admin/products/AdminProductHistoryPage";
 import AdminProductEntryHistoryPage from "./pages/admin/products/AdminProductEntryHistoyPage";
-import AdminInboxPage from "./pages/AdminInboxPage";
+import SupportDeskPage from "./pages/SupportDeskPage";
 import RequireAdmin from "./components/RequireAdmin";
 import UsersAdminPage from "./pages/admin/UsersAdminPage";
 import AdminAlertsPage from "./pages/admin/products/AdminAlertsPage";
 
 /* Soporte y varias */
 import SupportChatPage from "./pages/SupportChatPage";
-import SupportDeskPage from "./pages/SupportDeskPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import SlowPage from "./routes/SlowPage";
 
@@ -71,12 +74,11 @@ function AppShell() {
         <Navbar />
       </header>
 
-      {/* Overlay + watchdog + cancelación de requests */}
-      {/* Activa overlay también en cambios de ruta con showOnRouteChange={true} si lo deseas */}
+      {/* Manejo global de HTTP + transiciones de ruta */}
       <GlobalHttpHandler
         showOnRouteChange={true}
-        routeMinMs={300}
-        routeMaxMs={1200}
+        routeMinMs={600}
+        routeMaxMs={1400}
       />
 
       <main className="site-main" role="main">
@@ -95,7 +97,8 @@ function AppShell() {
             element={<ResetPasswordPage />}
           />
           <Route path="/profile" element={<ProfilePage />} />
-          {/** Complementos de navbar de cafe y panela */}
+
+          {/* Complementos */}
           <Route path="/origen/cafe-narino" element={<OrigenNarinoPage />} />
           <Route path="/origen/tostion" element={<TostionCafePage />} />
           <Route
@@ -106,7 +109,6 @@ function AppShell() {
 
           <Route path="/tienda" element={<CatalogoPage />} />
           <Route path="/categoria/:slug" element={<CatalogoPage />} />
-          {/* Compatibilidad navbar actual */}
           <Route path="/artesanias/:slug" element={<CatalogoPage />} />
           <Route path="/cafe/:slug" element={<CatalogoPage />} />
           <Route path="/panela/:slug" element={<CatalogoPage />} />
@@ -143,7 +145,6 @@ function AppShell() {
               element={<EditProductPage />}
             />
             <Route path="/admin/inbox" element={<SupportDeskPage />} />
-            {/*<Route path="/admin/support-desk" element={<SupportDeskPage />} />*/}
             <Route path="/admin/categories" element={<AdminCategoryPage />} />
             <Route path="/admin/sizes" element={<AdminSizesPage />} />
             <Route path="/admin/colors" element={<AdminColorsPage />} />
@@ -181,9 +182,13 @@ seedCsrf();
 export default function App() {
   return (
     <Router>
-      <div className="app-shell">
-        <AppShell />
-      </div>
+      <LoadingProvider showDelayMs={450} slowThresholdMs={12000}>
+        <div className="app-shell">
+          {/* ⬅️ Montamos overlay global aquí */}
+          <LoadingOverlay />
+          <AppShell />
+        </div>
+      </LoadingProvider>
     </Router>
   );
 }

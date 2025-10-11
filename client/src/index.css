@@ -65,14 +65,20 @@
 @import url("./style/pages/adminListManages.css");
 @import url("./style/pages/adminOrder.css");
 @import url("./style/pages/adminOrderDetailPage.css");
+@import url("./style/pages/adminProductEntryHistoryPage.css");
 @import url("./style/pages/adminProductManager.css");
 @import url("./style/pages/adminUserPage.css");
 @import url("./style/pages/authpage.css");
+@import url("./style/pages/cardPage.css");
+@import url("./style/pages/confirmModal.css");
 @import url("./style/pages/footer.css");
 @import url("./style/pages/heroBlock.css");
+@import url("./style/pages/myOrders.css");
 @import url("./style/pages/navbar.css");
+@import url("./style/pages/productDetailPage.css");
 @import url("./style/pages/productListPage.css");
 @import url("./style/pages/profilePage.css");
+@import url("./style/pages/recetasCafePanela.css");
 @import url("./style/pages/registerProductPage.css");
 
 /* 6) pruebas con los estilos antiguos*/

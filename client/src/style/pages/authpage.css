@@ -103,6 +103,7 @@
   font-weight: var(--font-weight-bold);
   font-size: clamp(1.75rem, 3.2vw, 2.2rem);
   line-height: 1.1;
+  color: #dfd8d8;
 }
 .auth-hero__subtitle {
   margin: 0;

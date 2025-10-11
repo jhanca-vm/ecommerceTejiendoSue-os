@@ -1,6 +1,5 @@
 /* =========================================
    FILE: src/styles/productListPage.css
-   (Usa los tokens de src/style/base/tokens.css)
    ========================================= */
 
 /* ====== Card ====== */
@@ -304,8 +303,102 @@
   pointer-events: none;
 }
 
+/*Estilos del ctalogo por categorias*/
+/* ====== Layout general ====== */
+.catalog-page {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.catalog-main {
+  width: 100%;
+}
+
+/* ====== Grid de productos ====== */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px;
+  align-items: stretch;
+  justify-items: center;
+  width: 100%;
+}
+
+/* ====== Ajuste uniforme de tarjetas ====== */
+.plb {
+  width: 100%;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* ====== Imagen consistente ====== */
+.plb__image {
+  width: 100%;
+  height: 240px;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* ====== Paginación ====== */
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+  gap: 8px;
+}
+.pagination button {
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+.pagination button:hover {
+  background: #f3f3f3;
+}
+.pagination button.active {
+  background: var(--color-brand, #e0a96d);
+  color: #fff;
+  border-color: var(--color-brand, #e0a96d);
+}
+
+/* ====== Responsivo ====== */
+@media (max-width: 1200px) {
+  .catalog-page {
+    grid-template-columns: 220px 1fr;
+  }
+  .products-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .catalog-page {
+    grid-template-columns: 1fr;
+  }
+  .products-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-items: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .products-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 /* ====== Responsivo (Desktop / Tablet / Phone) ====== */
-/* Desktop >=1200px (valor por defecto arriba) */
 
 @media (max-width: 1200px) {
   /* Tablet horizontal / laptops medianos */

@@ -1,3 +1,4 @@
+// src/pages/user/CatalogoPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -120,14 +121,7 @@ export default function CatalogPage() {
   const onChangePage = (p) => setQuery({ page: p });
 
   return (
-    <div
-      style={{
-        padding: 20,
-        display: "grid",
-        gridTemplateColumns: "260px 1fr",
-        gap: 24,
-      }}
-    >
+    <div className="catalog-page">
       <aside>
         <FiltersSidebar
           onSale={!!onSale}
@@ -139,7 +133,7 @@ export default function CatalogPage() {
         />
       </aside>
 
-      <main>
+      <main className="catalog-main">
         <CategoryHeader
           category={categoryInfo}
           slug={urlCategory}
@@ -157,23 +151,15 @@ export default function CatalogPage() {
             {data.length === 0 ? (
               <p>No se encontraron productos.</p>
             ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+              <div className="products-grid">
                 {data.map((p) => (
                   <ProductListBlocks key={p._id} product={p} />
                 ))}
               </div>
             )}
 
-            {/* Paginación simple */}
             {meta.total > meta.limit && (
-              <div
-                style={{
-                  marginTop: 24,
-                  display: "flex",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
+              <div className="pagination">
                 {Array.from(
                   { length: Math.ceil(meta.total / meta.limit) },
                   (_, i) => i + 1
@@ -182,12 +168,7 @@ export default function CatalogPage() {
                     key={p}
                     onClick={() => onChangePage(p)}
                     disabled={p === meta.page}
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #ccc",
-                      background: p === meta.page ? "#eee" : "#fff",
-                    }}
+                    className={p === meta.page ? "active" : ""}
                   >
                     {p}
                   </button>

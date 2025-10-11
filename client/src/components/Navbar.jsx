@@ -45,7 +45,7 @@ const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
             {
               label: "Sombrero",
               to: "/categoria/sombrero",
-              activeMatch: /^\/categoria\/sombrero(\/|$)/,
+              activeMatch: /^\/categoria\/sombreros(\/|$)/,
             },
             {
               label: "Manualidades",
@@ -151,8 +151,8 @@ const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
             children: [
               {
                 label: "Sombrero",
-                to: "/categoria/sombrero",
-                activeMatch: /^\/categoria\/sombrero(\/|$)/,
+                to: "/categoria/sombreros",
+                activeMatch: /^\/categoria\/sombreros(\/|$)/,
               },
               {
                 label: "Manualidades",

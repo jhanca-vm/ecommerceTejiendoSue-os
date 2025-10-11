@@ -75,6 +75,8 @@
   pointer-events: none;
 }
 
+
+
 /* 📱 Responsividad mejorada */
 @media (max-width: 1200px) {
   .hc-viewport {

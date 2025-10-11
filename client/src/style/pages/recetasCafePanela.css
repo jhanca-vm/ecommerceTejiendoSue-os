@@ -1,0 +1,356 @@
+/* src/style/origen-recipes.css */
+/* Requiere que src/style/base/tokens.css esté cargado globalmente */
+
+/* ========= Base de página compartida ========= */
+.origen-page,
+.recipes-page {
+  /* antes --bg-page */
+  background: var(--color-fond);
+  color: var(--color-text);
+  min-height: 100vh;
+  line-height: 1.55;
+}
+
+.container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ========= Hero ========= */
+.hero {
+  /* antes: gradiente entre --bg-hero y --bg-page */
+  background: linear-gradient(
+    180deg,
+    var(--color-surface-1),
+    var(--color-fond)
+  );
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+
+.kicker {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-brand);
+  letter-spacing: 0.3px;
+  margin-bottom: 6px;
+}
+
+.hero__title {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  margin: 0;
+  color: var(--color-text);
+}
+
+.hero__subtitle {
+  margin-top: 8px;
+  color: var(--color-muted);
+}
+
+.hero__nav {
+  margin-top: 14px;
+  display: inline-flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hero__link {
+  display: inline-block;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  text-decoration: none;
+  color: inherit;
+  box-shadow: var(--shadow-sm);
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--dur-2) var(--ease),
+    transform var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+
+.hero__link:hover {
+  /* seguro en tema cálido y gris */
+  background: var(--color-surface-2);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* ========= Secciones / títulos ========= */
+.block {
+  margin-top: 28px;
+  scroll-margin-top: 90px;
+}
+
+.block__title {
+  font-size: clamp(1.05rem, 2.2vw, 1.25rem);
+  margin: 0 0 14px 0;
+  color: var(--color-brand);
+  font-weight: var(--font-weight-bold);
+}
+
+/* ========= Grid responsive ========= */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+}
+
+/* ========= Tarjetas compartidas ========= */
+.card {
+  background: var(--color-white); /* antes --surface */
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ========= Variantes semánticas (placeholders) ========= */
+.stat {
+  /* indicador breve */
+}
+.feature {
+  /* bloque de característica */
+}
+
+/* ========= Badge / Chips / Tags ========= */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: var(--font-weight-semibold);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+/* mapeo a tokens de estado */
+.badge--emerald {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-color: var(--color-success-border);
+}
+
+.badge--amber {
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+  border-color: var(--color-warn-border);
+}
+
+.stat-chip {
+  display: inline-block;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--color-brand) 65%, var(--color-text));
+}
+
+.tag {
+  background: var(--color-surface-2);
+  color: color-mix(in srgb, var(--color-brand) 55%, var(--color-text));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+/* ========= Timeline ========= */
+.timeline {
+  position: relative;
+  border-left: 1px solid var(--color-border);
+  margin-left: 12px;
+  padding-left: 12px;
+}
+
+.timeline li {
+  margin: 0 0 18px 0;
+  position: relative;
+}
+
+.dot {
+  position: absolute;
+  left: -22px;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  text-align: center;
+  font: 700 0.75rem/22px var(--font-family);
+  box-shadow: 0 0 0 4px var(--color-white);
+}
+
+.dot--emerald {
+  background: var(--color-success-text);
+}
+.dot--amber {
+  background: var(--color-warn-text);
+}
+
+/* ========= SoftMap (fondo con brumas) ========= */
+.softmap {
+  position: relative;
+  overflow: hidden;
+}
+
+.softmap.card {
+  padding: 24px;
+}
+
+/* capa base bruma gris (usa color-muted como componente) */
+.softmap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    900px 450px at 10% -10%,
+    color-mix(in srgb, var(--color-muted) 18%, transparent),
+    transparent
+  );
+}
+
+/* brumas con tintes semánticos */
+.softmap--emerald::before {
+  background: radial-gradient(
+      900px 450px at 10% -10%,
+      color-mix(in srgb, var(--color-muted) 18%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      800px 400px at 90% 110%,
+      color-mix(in srgb, var(--color-success-text) 12%, transparent),
+      transparent
+    );
+}
+
+.softmap--amber::before {
+  background: radial-gradient(
+      900px 450px at 10% -10%,
+      color-mix(in srgb, var(--color-muted) 18%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      800px 400px at 90% 110%,
+      color-mix(in srgb, var(--color-warn-text) 12%, transparent),
+      transparent
+    );
+}
+
+/* ========= Tipos / colores de texto ========= */
+.h1,
+h1,
+.h2,
+h2,
+.h3,
+h3,
+.h4,
+h4 {
+  color: var(--color-text);
+}
+.muted {
+  color: var(--color-muted);
+}
+
+/* ========= Accesibilidad / motion ========= */
+:focus-visible {
+  outline: 2px solid var(--color-accent); /* antes --focus */
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+  .card:hover {
+    transform: none !important;
+  }
+}
+
+/* ========= Breakpoints ========= */
+@media (max-width: 1024px) {
+  .container {
+    padding: 20px;
+  }
+  .hero {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+  .hero {
+    padding: 20px;
+    border-radius: 16px;
+  }
+  .block {
+    margin-top: 24px;
+  }
+  .card {
+    padding: 14px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 12px;
+  }
+  .hero {
+    padding: 16px;
+  }
+  .hero__nav {
+    display: grid;
+    grid-auto-flow: row;
+    gap: 8px;
+    justify-content: center;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    padding: 12px;
+  }
+}
+
+/* ========= Tema gris (aplícalo con .theme--gris en el contenedor) ========= */
+/* Nota: no redefinimos :root; usamos tonos de tus tokens para conservar consistencia */
+.theme--gris .origen-page,
+.theme--gris .recipes-page {
+  background: color-mix(in srgb, var(--color-fond) 40%, #e1e2e4);
+}
+
+.theme--gris .hero {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface-1) 60%, #f3f5f8),
+    color-mix(in srgb, var(--color-fond) 60%, #e1e2e4)
+  );
+}
+
+.theme--gris .card,
+.theme--gris .hero__link {
+  background: var(--color-white);
+  border-color: color-mix(in srgb, var(--color-border) 70%, #d9dde3);
+}
+
+.theme--gris .hero__link:hover {
+  background: color-mix(in srgb, var(--color-surface-2) 50%, #edf1f6);
+}

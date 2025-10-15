@@ -384,7 +384,7 @@ const AdminProductPage = () => {
                     >
                       {expandedProductId === p._id
                         ? "Ocultar variantes"
-                        : "Ver variantes"}
+                        : "Variantes"}
                     </button>
                     <button
                       className="btn-history"

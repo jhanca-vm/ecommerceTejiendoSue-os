@@ -5,7 +5,7 @@ const AdminOrderCommentBlock = ({
   onFieldChange,
 }) => {
   return (
-    <div className="admin-order-comment-block">
+    <div className="section-shipping">
       <label title="Comentario visible solo para administración">
         Comentario del administrador:
         <textarea

@@ -220,10 +220,6 @@ const AdminOrderDetailPage = () => {
         lines: [
         ],
       },
-      // Opcional: controlar ancho/posición de pagos
-      // paymentBoxWidthPct: 0.7,
-      // paymentBoxAlign: "center",
-      // paymentBoxMinHeightMm: 10, // mínimo lógico
 
       // Observaciones (izquierda)
       noteTitle: "Observaciones",
@@ -279,10 +275,10 @@ const AdminOrderDetailPage = () => {
     : [];
 
   return (
-    <div className="admin-order-detail">
+    <div className="admin-order-detail ">
       <div className="section">
         <h3 className="section__title">
-          <FaClipboardList className="icon" /> Información del pedido
+          <FaClipboardList className="icon" /> Información del pedido: {order._id.slice(-8).toUpperCase() || "SIN-ID"}
         </h3>
         <p className="field">
           <strong>
@@ -441,7 +437,7 @@ const AdminOrderDetailPage = () => {
       )}
 
       {/* Metadatos editables */}
-      <div className="section">
+      <div className="section ">
         <h3 className="section__title">
           <FaTruck className="icon" /> Información de envío
         </h3>

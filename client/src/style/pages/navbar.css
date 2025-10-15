@@ -8,13 +8,10 @@
   left: 0;
   right: 0;
   z-index: var(--z-navbar);
-  /* Si quieres blur:
-     backdrop-filter: saturate(140%) blur(6px);
-  */
 }
 
 .site-main {
-  padding-top: 65px; /* ajusta a la altura real del header */
+  padding-top: 70px; 
 }
 
 /* ====== SHELL ====== */
@@ -27,7 +24,6 @@
 }
 
 .navbar-wrapper {
-  /* Si quieres limitar ancho: usa .container en el HTML */
   margin: 0 auto;
   padding: 0.6rem 1rem;
   display: grid;

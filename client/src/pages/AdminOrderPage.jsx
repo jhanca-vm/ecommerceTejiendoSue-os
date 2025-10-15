@@ -309,7 +309,7 @@ const exportPDF = () => {
       <h2 className="text-xl font-bold mb-3">Historial general de ventas</h2>
 
       {/* Filtros (aplican solos) */}
-      <div className="mb-4 flex flex-wrap gap-3 items-end">
+      <div className="af mb-4 flex flex-wrap gap-3 items-end">
         {/* Mes (sincroniza Desde/Hasta) */}
         <div>
           <label className="block text-sm">Mes</label>

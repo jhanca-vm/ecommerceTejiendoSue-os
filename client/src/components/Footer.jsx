@@ -11,7 +11,7 @@ const SOCIAL_LINKS = {
   instagram: "", // ej: "https://instagram.com/tu_marca"
   facebook: "", // ej: "https://facebook.com/tu_marca"
   tiktok: "", // ej: "https://tiktok.com/@tu_marca"
-  whatsapp: "", // ej: "https://wa.me/57xxxxxxxxxx"
+  whatsapp: "https://wa.me/573203385899", 
 };
 
 const Footer = () => {
@@ -82,16 +82,13 @@ const Footer = () => {
             <h5 className="sf__subtitle">Productos</h5>
             <ul className="sf__links">
               <li>
-                <Link to="/artesanias/sombreros">Sombreros</Link>
+                <Link to="/categoria/sombreros">Sombreros</Link>
               </li>
               <li>
-                <Link to="/artesanias/accesorios">Carteras</Link>
+                <Link to="/categoria/carteras">Carteras</Link>
               </li>
               <li>
-                <Link to="/artesanias/colecciones">Canastas</Link>
-              </li>
-              <li>
-                <Link to="/artesanias/accesorios">Accesorios</Link>
+                <Link to="/categoria/canastas">Canastas</Link>
               </li>
             </ul>
           </div>
@@ -106,9 +103,6 @@ const Footer = () => {
               </li>
               <li>
                 <Link to="/envios">Envíos</Link>
-              </li>
-              <li>
-                <Link to="/devoluciones">Devoluciones</Link>
               </li>
               <li>
                 <Link to="/contacto">Contacto</Link>
@@ -168,12 +162,18 @@ const Footer = () => {
         {/* Barra inferior */}
         <div className="sf__bottom">
           <div className="sf__visits" title="Visitas totales">
-          <p className="sf__copy">
-            © {year} Artesanías Paja Toquilla. Todos los derechos reservados.
-          </p>
-          <p className="sf__copy">
-            Diseño y desarrollo. Armando Mora.
-          </p>
+            <p className="sf__copy">
+              © {year} Artesanías Paja Toquilla. Todos los derechos reservados.
+            </p>
+            <p className="sf__copy">
+              Diseño y desarrollo.{" "}
+              <Link
+                to="https://portafolio-sigma-smoky.vercel.app/"
+                target="_blank"
+              >
+                Armando Mora.
+              </Link>
+            </p>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 5c5 0 9.27 3.11 11 7-1.73 3.89-6 7-11 7S2.73 15.89 1 12c1.73-3.89 6-7 11-7Zm0 2c-3.73 0-7.07 2.13-8.71 5 1.64 2.87 4.98 5 8.71 5s7.07-2.13 8.71-5C19.07 9.13 15.73 7 12 7Zm0 2.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5Z" />
             </svg>

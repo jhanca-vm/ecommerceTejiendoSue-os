@@ -1,3 +1,4 @@
+// src/blocks/users/HeroBlock.jsx
 import React from "react";
 
 import img from "../../assets/hat.png";

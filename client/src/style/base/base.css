@@ -15,6 +15,17 @@ body {
   background: var(--color-fond);
 }
 
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; 
+}
+
+.site-main {
+  flex: 1;
+  padding: var(--space-4);
+}
+
 h1,
 h2,
 h3 {

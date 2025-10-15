@@ -203,16 +203,19 @@
   border: 1px solid transparent;
   font-weight: var(--font-weight-bold);
   cursor: pointer;
+    width: 200px;
 }
 
 .btn--primary {
   background: var(--gradient-brand);
   color: #fff;
   box-shadow: var(--shadow-md);
+
 }
 
 .btn--primary:hover {
   filter: brightness(1.05);
+  background-color: red;
 }
 
 .btn--ghost {

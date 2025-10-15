@@ -1,79 +1,160 @@
-/* src/style/pages/adminOrderDetail.css */
-/* Página apoyada en tokens globales + componentes. Sin :root aquí. */
+/* ============================
+   ADMIN ORDER DETAIL PAGE
+   ============================ */
 
 /* ===== Shell ===== */
 .admin-order-detail {
-  max-width: var(--container-max);
+  max-width: var(--container-max, 1100px);
   margin: 0 auto;
-  padding: 1.2rem 1rem 2rem;
-  color: var(--color-text);
+  padding: 2rem 1.5rem 3rem;
+  color: var(--color-text, #2d2d2d);
+  font-family: "Inter", system-ui, sans-serif;
+  background-color: #fafafa;
 }
 
 /* ===== Secciones ===== */
-/* En el HTML añade class="card section" (recomendado) */
 .section {
-  padding: 0.9rem; /* override suave sobre .card */
-  margin-bottom: 1rem;
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.4rem 1.6rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
 }
+
+.section:hover {
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.07);
+  transform: translateY(-1px);
+}
+
 .section__title {
-  margin: 0 0 0.6rem 0;
-  font-weight: var(--font-weight-bold);
+  margin-bottom: 0.9rem;
+  font-weight: 700;
   color: #2b2b2b;
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
+  font-size: 1.15rem;
 }
-.section .icon {
-  opacity: 0.75;
+
+.section__title .icon {
+  color: #c7903b;
+  font-size: 1.1rem;
 }
 
 /* ===== Campos simples ===== */
 .field {
-  margin: 0.15rem 0;
+  margin: 0.25rem 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
+
 .field strong {
   color: #333;
+  font-weight: 600;
 }
 
 /* ===== Acciones arriba (PDF) ===== */
 .actions-top {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-2);
-  margin: 0.4rem 0 1rem;
+  margin: 0.8rem 0 1.4rem;
+}
+
+.actions-top .btn {
+  font-size: 0.95rem;
+  border-radius: 10px;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid #c7903b;
+  color: #c7903b;
+  background: transparent;
+  transition: all 0.25s ease;
+}
+
+.actions-top .btn:hover {
+  background: #c7903b;
+  color: #fff;
+  transform: translateY(-1px);
 }
 
 /* ===== Filas de acciones ===== */
-.actions-row,
-.nav-row {
+.actions-row {
   display: flex;
-  gap: var(--space-2);
   flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-start;
 }
-.nav-row {
-  margin-top: 0.6rem;
+
+.actions-row .btn {
+  border-radius: 10px;
+  font-weight: 600;
+  padding: 0.6rem 1.2rem;
+  transition: all 0.2s ease;
+}
+
+.btn--primary {
+  background: #c7903b;
+  border: none;
+  color: #fff;
+}
+
+.btn--primary:hover {
+  background: #b47f2d;
+}
+
+.btn--muted {
+  background: #f2f2f2;
+  border: 1px solid #ccc;
+  color: #333;
+}
+
+.btn--muted:hover {
+  background: #e0e0e0;
 }
 
 /* ===== Tabla de ítems ===== */
-/* Usa el componente de tabla: table-wrap + table */
 .table-responsive {
-  /* alias para compatibilidad */
-  composes: table-wrap from "../components/table.css";
-}
-.table {
-  composes: table from "../components/table.css";
-  min-width: 760px;
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid #e0dcd3;
 }
 
-/* ===== Totales ===== */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 780px;
+  font-size: 0.92rem;
+}
+
+.table thead {
+  background: #f6efdf;
+  color: #5a513f;
+  text-align: left;
+}
+
+.table th,
+.table td {
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid #eae0cd;
+}
+
+.table tbody tr:hover {
+  background: #fffdf8;
+}
+
 .total-label {
   text-align: right;
-}
-.total-value {
-  color: #1e1e1e;
+  font-weight: 700;
+  font-size: 1rem;
 }
 
-/* ===== Mini-tabla variante dentro de la celda ===== */
+.total-value {
+  color: #1e1e1e;
+  font-weight: 700;
+}
+
+/* ===== Mini-tabla variante ===== */
 .variant-cell {
   padding: 0 0.6rem;
 }
@@ -81,61 +162,139 @@
 .variant-mini-table {
   width: 100%;
   border: 1px solid #eae0cd;
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   overflow: hidden;
   background: #fffef9;
 }
+
 .variant-mini-table th {
-  background: #f6efdf;
+  background: #f7f1e3;
   color: #5a513f;
-  font-weight: var(--font-weight-bold);
-  font-size: 0.9rem;
+  font-weight: 600;
+  font-size: 0.85rem;
   padding: 0.35rem 0.45rem;
-  border-bottom: 1px solid #eae0cd;
+  text-align: center;
 }
+
 .variant-mini-table td {
   padding: 0.35rem 0.45rem;
+  text-align: center;
 }
 
-/* ===== Botones ===== */
-/* Usa las variantes globales: .btn, .btn--primary, .btn--ghost, etc.
-   Aquí solo afinamos detalles contextuales si hace falta. */
-.btn .icon {
-  font-size: 1rem;
-}
-
-/* ===== Loading simple ===== */
+/* ===== Loading ===== */
 .loading {
-  max-width: var(--container-max);
-  margin: 0 auto;
-  padding: 1.2rem 1rem 2rem;
-  color: var(--color-muted);
+  text-align: center;
+  font-size: 1rem;
+  color: #888;
+  padding: 3rem 0;
+}
+
+/* ===== Historial ===== */
+.table-compact {
+  font-size: 0.9rem;
+}
+
+.table-compact th {
+  background: #f8f4ea;
+  font-weight: 600;
+}
+
+.table-compact tbody tr:nth-child(odd) {
+  background: #faf9f5;
+}
+
+/* ===== Información de envío ===== */
+.section-shipping {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.section-shipping .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.section-shipping label {
+  font-weight: 600;
+  color: #3a3a3a;
+  font-size: 0.95rem;
+}
+
+.section-shipping input,
+.section-shipping textarea,
+.section-shipping select {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #ddd6c3;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  background-color: #fffefb;
+  color: #2a2a2a;
+  transition: all 0.2s ease-in-out;
+}
+
+.section-shipping input:focus,
+.section-shipping textarea:focus,
+.section-shipping select:focus {
+  border-color: #b57854;
+  box-shadow: 0 0 0 2px rgba(181, 139, 84, 0.15);
+  outline: none;
+}
+
+.section-shipping textarea {
+  min-height: 110px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+/* Botones dentro de sección envío (si los hubiera) */
+.section-shipping .btn {
+  align-self: flex-start;
 }
 
 /* ===== Responsive ===== */
 @media (max-width: 900px) {
+  .admin-order-detail {
+    padding: 1.5rem 1rem 2.5rem;
+  }
+
+  .section {
+    padding: 1.1rem 1.2rem;
+  }
+
   .table {
     min-width: 680px;
   }
 }
 
 @media (max-width: 720px) {
-  .actions-top,
   .actions-row,
-  .nav-row {
-    gap: 0.4rem;
+  .actions-top {
+    flex-direction: column;
+    align-items: stretch;
   }
-  .table {
-    min-width: 640px;
+
+  .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+    .section-shipping {
+    gap: 0.75rem;
+  }
+  .section-shipping label {
+    font-size: 0.9rem;
   }
 }
 
-/* Micro-ajustes muy pequeños */
 @media (max-width: 480px) {
-  .section {
-    padding: 0.75rem;
-  }
   .section__title {
-    gap: 0.35rem;
+    font-size: 1rem;
+  }
+
+  .table {
+    min-width: 640px;
   }
 }

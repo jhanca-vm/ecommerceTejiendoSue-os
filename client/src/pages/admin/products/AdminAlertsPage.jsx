@@ -106,14 +106,14 @@ const AdminAlertsPage = () => {
         </div>
       ) : (
         <div className="table-wrap">
-          <table className="table ">
+          <table className="table alerts-table">
             <thead>
               <tr>
                 <th>Tipo</th>
                 <th>Mensaje</th>
                 <th>Asociado</th>
                 <th>Fecha</th>
-                <th >Acciones</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>

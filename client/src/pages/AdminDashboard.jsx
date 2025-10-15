@@ -281,7 +281,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
           <button
             className="btn btn--ghost"
             onClick={() => {
-              setStatusFilter("todos");
+              setStatusFilter("pendiente");
               setSearchFilter("");
               setDateRange({ from: "", to: "" });
             }}
@@ -290,8 +290,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
           </button>
         </div>
       ) : (
-            <div className="ao__list">
-              
+        <div className="ao__list">
           {filteredOrders.map((order) => (
             <OrderCardBlock
               key={order._id}

@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import apiUrl from "../api/apiClient";
 import ProductListBlocks from "../blocks/users/ProductListBlocks";
-import HeroBlock from "../blocks/users/HeroBlock";
+import HeroBlock from "../blocks/users/heroBlock/RotatingHero";
 import { AuthContext } from "../contexts/AuthContext";
 
 /* ---------- Carrusel centrado: 5 por vista, máx 10 por sección ---------- */

@@ -1,11 +1,12 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useRef, useContext, useEffect, useMemo } from "react";
 
+
+import ConfirmModal from "../blocks/ConfirmModalBlock";
 import { AuthContext } from "../contexts/AuthContext";
 import { CartContext } from "../contexts/CartContext";
 import { SupportContext } from "../contexts/SupportContext";
 import { useToast } from "../contexts/ToastContext";
-import ConfirmModal from "../blocks/ConfirmModalBlock";
 import { useFavorites } from "../contexts/FavoriteContext";
 import { useAdminAlerts } from "../contexts/AdminAlertsContext";
 
@@ -628,7 +629,7 @@ const Navbar = () => {
             {/* Iconos (solo desktop) — SOLO para clientes */}
             {isCustomer && (
               <div className="icon-bar">
-                <Link
+                {/*<Link
                   to="#"
                   onClick={(e) => {
                     e.preventDefault();
@@ -642,7 +643,7 @@ const Navbar = () => {
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M15.5 14h-.79l-.28-.27A6.5 6.5 0 1 0 14 15.5l.27.28v.79L20 21l1-1-5.5-5.5zM5 10.5A5.5 5.5 0 1 1 10.5 16 5.51 5.51 0 0 1 5 10.5z" />
                   </svg>
-                </Link>
+                </Link>*/}
 
                 <Link
                   to="#"
@@ -778,7 +779,7 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Búsqueda desplegable (desktop/tablet) — solo cliente */}
+        {/* Búsqueda desplegable (desktop/tablet) — solo cliente 
         {isCustomer && (
           <div
             className={`search-bar ${showSearch ? "open" : ""}`}
@@ -807,7 +808,7 @@ const Navbar = () => {
               </button>
             </form>
           </div>
-        )}
+        )}*/}
 
         {/* Drawer móvil */}
         <aside
@@ -831,7 +832,7 @@ const Navbar = () => {
 
           {isCustomer && (
             <div className="drawer-icons">
-              <button
+              {/* <button
                 className="icon-btn"
                 onClick={handleSearchToggle}
                 aria-label="Buscar"
@@ -840,6 +841,7 @@ const Navbar = () => {
                   <path d="M15.5 14h-.79l-.28-.27A6.5 6.5 0 1 0 14 15.5l.27.28v.79L20 21l1-1-5.5-5.5zM5 10.5A5.5 5.5 0 1 1 10.5 16 5.51 5.51 0 0 1 5 10.5z" />
                 </svg>
               </button>
+              */}
               <Link
                 to="/favorites"
                 className="icon-btn cart-btn"
@@ -869,7 +871,7 @@ const Navbar = () => {
             </div>
           )}
 
-          {isCustomer && (
+          {/*{isCustomer && (
             <div className="drawer-search">
               <form
                 onSubmit={(e) => {
@@ -891,7 +893,7 @@ const Navbar = () => {
                 <button type="submit">Ir</button>
               </form>
             </div>
-          )}
+          )}*/}
 
           <div className="drawer-content">
             {items.map((item, idx) => {

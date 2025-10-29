@@ -43,6 +43,7 @@ import CartPage from "./pages/CartPage";
 import MyOrders from "./pages/Myorders";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import FavoritesPage from "./pages/user/FavoritesPage";
+import WhatsAppFab from "./components/WhatsAppFab";
 
 /* Páginas privadas (admin) */
 import AdminDashboard from "./pages/AdminDashboard";
@@ -83,6 +84,9 @@ function AppShell() {
   const isAdmin = user?.role === "admin";
   const isAdminRoute = location.pathname.startsWith("/admin");
   const showFooter = !isAdmin && !isAdminRoute;
+
+  const { pathname } = useLocation();
+  const showWaFab = pathname === "/";
 
   return (
     <>
@@ -182,6 +186,13 @@ function AppShell() {
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        {showWaFab && (
+          <WhatsAppFab
+            message="Hola 👋 Me gustaría recibir ayuda sobre un producto."
+            // Puedes pasar un UTM distinto para campaña Home
+            utm="utm_source=ecommerce&utm_medium=fab&utm_campaign=home_support"
+          />
+        )}
       </main>
 
       {showFooter && (

@@ -2,35 +2,35 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Flame, Thermometer, Timer, Gauge, Coffee } from "lucide-react";
 
-/** Página informativa de Tostión (sin backend) */
+/** ===== Datos estáticos: sin backend ===== */
 const ROAST_LEVELS = [
   {
     title: "Claro (City)",
     icon: Coffee,
     notes:
       "Acidez alta, dulzor medio, cuerpo ligero. Ideal para filtrados (V60, Chemex, Kalita).",
-    range: "Color claro / primer crack reciente",
+    range: "Color claro • primer crack reciente",
   },
   {
     title: "Medio (City+ / Full City)",
     icon: Coffee,
     notes:
       "Balance acidez–dulzor, cuerpo medio. Versátil: filtrados y espresso moderno.",
-    range: "Después del primer crack, sin aceites visibles",
+    range: "Post 1er crack • sin aceites visibles",
   },
   {
     title: "Medio-oscuro (Full City+)",
     icon: Coffee,
     notes:
-      "Menos acidez, más chocolate/caramelo; cuerpo alto. Espresso clásico, prensa.",
-    range: "Cerca del segundo crack, aceites muy tenues",
+      "Menos acidez, más caramelo/chocolate; cuerpo alto. Espresso clásico, prensa.",
+    range: "Cerca del 2º crack • aceites muy tenues",
   },
   {
-    title: "Oscuro (Vienna/Français)",
+    title: "Oscuro (Vienna / French)",
     icon: Coffee,
     notes:
       "Tostado dominante, amargor notable; cuerpo pesado. Espresso intenso y bebidas con leche.",
-    range: "Aceites visibles, notas ahumadas",
+    range: "Aceites visibles • notas ahumadas",
   },
 ];
 
@@ -38,152 +38,237 @@ const STAGES = [
   {
     step: "Carga y secado",
     icon: Thermometer,
-    temp: "Tambor ~190–205 °C",
-    signals: "Chirrido leve, grano verde amarillento. Evaporación de humedad.",
-    goal: "Secar sin ‘tostar’ aún; base para Maillard estable.",
+    temp: "Tambor 190–205 °C (ref.)",
+    signals: "Chirrido leve; grano verde → amarillento (evaporación).",
+    goal: "Secar sin ‘hornear’; base estable para Maillard.",
   },
   {
     step: "Maillard",
     icon: Gauge,
     temp: "Grano ~140–160 °C",
-    signals: "Aromas a pan/tostado; color avanza a canela.",
-    goal: "Desarrollar precursores de sabor y dulzor.",
+    signals: "Aromas pan/tostado; color canela.",
+    goal: "Construir dulzor/cuerpo (precursores).",
   },
   {
     step: "Primer crack",
     icon: Flame,
     temp: "Grano ~196–203 °C",
-    signals: "‘Pops’ audibles; liberación de vapor y CO₂.",
-    goal: "Anclar punto de desarrollo según perfil deseado.",
+    signals: "‘Pops’ audibles; expansión y CO₂.",
+    goal: "Marcar inicio de Desarrollo (DTR).",
   },
   {
     step: "Desarrollo",
     icon: Timer,
-    temp: "Grano 205–215 °C (según objetivo)",
-    signals: "Dulzor–acidez–cuerpo en equilibrio dinámico.",
-    goal: "Definir nivel de tostión (City / City+ / Full City…).",
+    temp: "Grano 205–215 °C+ (según objetivo)",
+    signals: "Equilibrio acidez-dulzor-cuerpo.",
+    goal: "Definir nivel (City / City+ / Full City…).",
   },
   {
     step: "Enfriado",
     icon: Thermometer,
     temp: "Rápido a ambiente",
-    signals: "Detener reacciones; preservar fragancias.",
-    goal: "Estabilizar y evitar ‘horneado’.",
+    signals: "Corte térmico limpio.",
+    goal: "Preservar volátiles; evitar horneado.",
   },
 ];
 
-function Kicker({ children }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
-      {children}
-    </span>
-  );
-}
+const QUICK_STATS = [
+  { icon: Thermometer, label: "Carga (tambor)", value: "190–205 °C" },
+  { icon: Timer, label: "DTR recomendado", value: "15–25 % del total" },
+  { icon: Gauge, label: "Duración típica", value: "8–12 min (ref.)" },
+];
 
-function StatChip({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-xl border border-zinc-300 bg-white p-3 shadow-sm">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-zinc-700" />
-        <p className="text-xs text-zinc-500">{label}</p>
-      </div>
-      <p className="mt-1 font-semibold text-zinc-900">{value}</p>
+/** ===== UI atómica (reutiliza tus estilos base) ===== */
+const Kicker = ({ children }) => (
+  <span className="badge rt-badge">{children}</span>
+);
+
+const StatChip = ({ icon: Icon, label, value }) => (
+  <div className="card rt-chip">
+    <div className="rt-chip__head">
+      <Icon className="rt-icon" size={16} />
+      <p className="muted rt-chip__label">{label}</p>
     </div>
-  );
-}
+    <p className="rt-chip__value">{value}</p>
+  </div>
+);
 
-function FeatureCard({ icon: Icon, title, notes, range }) {
-  return (
-    <motion.article
-      initial={{ opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.35 }}
-      className="rounded-2xl border border-zinc-300 bg-white p-5 hover:shadow-lg"
-    >
-      <div className="mb-2 flex items-center gap-3">
-        <span className="rounded-xl bg-zinc-100 p-2" aria-hidden>
-          <Icon className="h-5 w-5 text-zinc-700" />
-        </span>
-        <h3 className="font-semibold text-zinc-900">{title}</h3>
-      </div>
-      <p className="text-sm text-zinc-600">{notes}</p>
-      <p className="mt-2 text-xs text-zinc-500">Rango: {range}</p>
-    </motion.article>
-  );
-}
+const FeatureCard = ({ icon: Icon, title, notes, range }) => (
+  <motion.article
+    initial={{ opacity: 0, y: 10 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, amount: 0.2 }}
+    transition={{ duration: 0.35 }}
+    className="card rt-feature"
+  >
+    <div className="rt-feature__head">
+      <span className="rt-icon-wrap" aria-hidden>
+        <Icon className="rt-icon" size={18} />
+      </span>
+      <h3 className="rt-feature__title">{title}</h3>
+    </div>
+    <p className="muted rt-feature__body">{notes}</p>
+    <p className="rt-feature__range">Rango: {range}</p>
+  </motion.article>
+);
 
-function StageRow({ s, index }) {
+const StageRow = ({ s, index }) => {
   const Icon = s.icon;
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-2xl border border-zinc-300 bg-white p-4 shadow-sm sm:grid-cols-12">
-      <div className="flex items-center gap-2 sm:col-span-3">
-        <span className="rounded-lg bg-zinc-100 p-2" aria-hidden>
-          <Icon className="h-5 w-5 text-zinc-700" />
+    <div className="card rt-stage">
+      <div className="rt-stage__col rt-stage__col--title">
+        <span className="rt-icon-wrap" aria-hidden>
+          <Icon className="rt-icon" size={18} />
         </span>
-        <p className="font-semibold text-zinc-900">
+        <p className="rt-stage__title">
           {index + 1}. {s.step}
         </p>
       </div>
-      <div className="sm:col-span-3">
-        <p className="text-xs text-zinc-500">Temperatura</p>
-        <p className="font-medium text-zinc-800">{s.temp}</p>
+      <div className="rt-stage__col">
+        <p className="rt-stage__label">Temperatura</p>
+        <p className="rt-stage__value">{s.temp}</p>
       </div>
-      <div className="sm:col-span-3">
-        <p className="text-xs text-zinc-500">Señales</p>
-        <p className="text-zinc-700">{s.signals}</p>
+      <div className="rt-stage__col">
+        <p className="rt-stage__label">Señales</p>
+        <p className="rt-stage__value">{s.signals}</p>
       </div>
-      <div className="sm:col-span-3">
-        <p className="text-xs text-zinc-500">Objetivo</p>
-        <p className="text-zinc-700">{s.goal}</p>
+      <div className="rt-stage__col">
+        <p className="rt-stage__label">Objetivo</p>
+        <p className="rt-stage__value">{s.goal}</p>
       </div>
     </div>
   );
-}
+};
+
+/** Banda de color (roast strip) */
+const RoastStrip = () => (
+  <div className="card rt-strip" aria-label="Escala visual de tostión">
+    <div className="rt-strip__bar" />
+    <div className="rt-strip__labels">
+      <span>Claro</span>
+      <span>Medio</span>
+      <span>Medio-oscuro</span>
+      <span>Oscuro</span>
+    </div>
+  </div>
+);
+
+/** Curva SVG (mock) */
+const RoastCurve = () => (
+  <div
+    className="card rt-curve"
+    aria-label="Curva de tostión (ejemplo ilustrativo)"
+  >
+    <svg viewBox="0 0 600 280" className="rt-curve__svg" aria-hidden>
+      <defs>
+        <linearGradient id="rtg" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.05" />
+        </linearGradient>
+      </defs>
+      <rect width="600" height="280" fill="url(#rtg)" />
+      {/* Ejes simples */}
+      <g stroke="currentColor" opacity="0.35">
+        <line x1="40" y1="240" x2="580" y2="240" />
+        <line x1="40" y1="40" x2="40" y2="240" />
+      </g>
+      {/* Curva: TP -> Maillard -> 1C -> Desarrollo */}
+      <path
+        d="M40 220 C 120 260, 160 200, 220 180
+           S 320 160, 340 150
+           S 380 140, 400 120
+           S 460 110, 520 100"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      {/* Marcadores de eventos */}
+      <g fill="currentColor">
+        <circle cx="220" cy="180" r="3" />
+        <text x="228" y="176" fontSize="10" fill="currentColor">
+          Maillard
+        </text>
+        <circle cx="380" cy="140" r="3" />
+        <text x="388" y="136" fontSize="10" fill="currentColor">
+          1er crack
+        </text>
+        <circle cx="520" cy="100" r="3" />
+        <text x="528" y="96" fontSize="10" fill="currentColor">
+          Fin desarrollo
+        </text>
+      </g>
+      {/* Leyendas ejes */}
+      <text x="8" y="48" fontSize="10" fill="currentColor">
+        Temp
+      </text>
+      <text x="560" y="255" fontSize="10" fill="currentColor">
+        Tiempo
+      </text>
+    </svg>
+    <p className="muted rt-curve__note">
+      Ejemplo ilustrativo. Ajusta según tu máquina (carga, flujo de aire, gas) y
+      origen.
+    </p>
+  </div>
+);
 
 export default function CafeTostionPage() {
   return (
-    <main className="min-h-screen bg-zinc-100 text-zinc-800">
-      <div className="mx-auto max-w-6xl space-y-10 p-6 md:p-10">
+    <main className="origen-page theme--tostion" aria-labelledby="roast-title">
+      <div className="container">
         {/* Hero */}
-        <header className="space-y-2 text-center">
+        <header className="hero">
           <Kicker>Tostión de café</Kicker>
-          <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 md:text-4xl">
+          <h1 id="roast-title" className="hero__title">
             Perfiles y etapas de tostión
           </h1>
-          <p className="mx-auto max-w-3xl text-zinc-600">
-            Guía breve para entender niveles (claro → oscuro) y el flujo de
-            tostión. Valores orientativos: ajusta según equipo y origen.
+          <p className="hero__subtitle">
+            Guía visual para entender niveles (claro → oscuro), fases térmicas y
+            métricas clave (DTR/RoR). Valores orientativos; ajusta según equipo
+            y origen.
           </p>
         </header>
 
-        {/* Stats rápidos */}
-        <section className="grid gap-4 sm:grid-cols-3" aria-label="Indicadores">
-          <StatChip icon={Thermometer} label="Temperatura de tambor (carga)" value="190–205 °C" />
-          <StatChip icon={Timer} label="Proporción de desarrollo" value="15–25% del total" />
-          <StatChip icon={Gauge} label="Duración total común" value="8–12 min" />
+        {/* Indicadores rápidos */}
+        <section className="grid block" aria-label="Indicadores">
+          {QUICK_STATS.map((s, i) => (
+            <StatChip key={i} icon={s.icon} label={s.label} value={s.value} />
+          ))}
+        </section>
+
+        {/* Banda de color y curva */}
+        <section className="grid block" aria-label="Visualizaciones">
+          <RoastStrip />
+          <RoastCurve />
         </section>
 
         {/* Niveles de tostión */}
-        <section aria-label="Niveles de tostión" className="space-y-3">
-          <h2 className="text-xl font-bold text-zinc-900">Niveles de tostión</h2>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="block" aria-label="Niveles de tostión">
+          <h2 className="block__title">Niveles de tostión</h2>
+          <div className="grid rt-grid--levels">
             {ROAST_LEVELS.map((r) => (
-              <FeatureCard key={r.title} icon={r.icon} title={r.title} notes={r.notes} range={r.range} />
+              <FeatureCard
+                key={r.title}
+                icon={r.icon}
+                title={r.title}
+                notes={r.notes}
+                range={r.range}
+              />
             ))}
           </div>
         </section>
 
         {/* Etapas / Curva (resumen) */}
-        <section aria-label="Curva de tostión" className="space-y-3">
-          <h2 className="text-xl font-bold text-zinc-900">Curva de tostión (resumen)</h2>
-          <div className="space-y-3">
+        <section className="block" aria-label="Curva de tostión (resumen)">
+          <h2 className="block__title">Fases de la curva</h2>
+          <div className="rt-stages">
             {STAGES.map((s, i) => (
               <StageRow key={s.step} s={s} index={i} />
             ))}
           </div>
-          <p className="text-xs text-zinc-500">
-            * Mantén un enfriado rápido para evitar horneado; deja reposar el café 24–72 h antes de espresso.
+          <p className="muted rt-footnote">
+            * Enfriado rápido evita “horneado”. Para espresso, reposo típico
+            24–72 h.
           </p>
         </section>
       </div>

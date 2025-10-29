@@ -1,10 +1,14 @@
-/* src/style/origen-recipes.css */
-/* Requiere que src/style/base/tokens.css esté cargado globalmente */
+/* ======================================================================
+   Origen & Recetas — CSS Integrado (Cafe Sandoná, Tostión, Panela, Recetas)
+   Requiere:
+   - src/style/base/tokens.css  (NO se toca)
+   ====================================================================== */
 
-/* ========= Base de página compartida ========= */
+/* =======================
+   BASE COMPARTIDA
+   ======================= */
 .origen-page,
 .recipes-page {
-  /* antes --bg-page */
   background: var(--color-fond);
   color: var(--color-text);
   min-height: 100vh;
@@ -17,9 +21,8 @@
   padding: 24px;
 }
 
-/* ========= Hero ========= */
+/* Hero */
 .hero {
-  /* antes: gradiente entre --bg-hero y --bg-page */
   background: linear-gradient(
     180deg,
     var(--color-surface-1),
@@ -31,32 +34,27 @@
   box-shadow: var(--shadow-md);
   text-align: center;
 }
-
 .kicker {
   font-weight: var(--font-weight-semibold);
   color: var(--color-brand);
   letter-spacing: 0.3px;
   margin-bottom: 6px;
 }
-
 .hero__title {
   font-size: clamp(1.6rem, 3vw, 2.2rem);
   margin: 0;
   color: var(--color-text);
 }
-
 .hero__subtitle {
   margin-top: 8px;
   color: var(--color-muted);
 }
-
 .hero__nav {
   margin-top: 14px;
   display: inline-flex;
   gap: 10px;
   flex-wrap: wrap;
 }
-
 .hero__link {
   display: inline-block;
   padding: 8px 12px;
@@ -70,20 +68,17 @@
   transition: background var(--dur-2) var(--ease),
     transform var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
-
 .hero__link:hover {
-  /* seguro en tema cálido y gris */
   background: var(--color-surface-2);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
 }
 
-/* ========= Secciones / títulos ========= */
+/* Secciones / títulos */
 .block {
   margin-top: 28px;
   scroll-margin-top: 90px;
 }
-
 .block__title {
   font-size: clamp(1.05rem, 2.2vw, 1.25rem);
   margin: 0 0 14px 0;
@@ -91,16 +86,16 @@
   font-weight: var(--font-weight-bold);
 }
 
-/* ========= Grid responsive ========= */
+/* Grid responsivo */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
   gap: 14px;
 }
 
-/* ========= Tarjetas compartidas ========= */
+/* Tarjetas */
 .card {
-  background: var(--color-white); /* antes --surface */
+  background: var(--color-white);
   border: 1px solid var(--color-border);
   border-radius: 18px;
   padding: 16px;
@@ -108,21 +103,12 @@
   transition: transform var(--dur-2) var(--ease),
     box-shadow var(--dur-2) var(--ease);
 }
-
 .card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
-/* ========= Variantes semánticas (placeholders) ========= */
-.stat {
-  /* indicador breve */
-}
-.feature {
-  /* bloque de característica */
-}
-
-/* ========= Badge / Chips / Tags ========= */
+/* Badges / chips / tags */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -135,14 +121,11 @@
   background: var(--color-surface-2);
   color: var(--color-text);
 }
-
-/* mapeo a tokens de estado */
 .badge--emerald {
   background: var(--color-success-bg);
   color: var(--color-success-text);
   border-color: var(--color-success-border);
 }
-
 .badge--amber {
   background: var(--color-warn-bg);
   color: var(--color-warn-text);
@@ -158,7 +141,6 @@
   font-size: 0.78rem;
   color: color-mix(in srgb, var(--color-brand) 65%, var(--color-text));
 }
-
 .tag {
   background: var(--color-surface-2);
   color: color-mix(in srgb, var(--color-brand) 55%, var(--color-text));
@@ -168,90 +150,7 @@
   font-size: 0.75rem;
 }
 
-/* ========= Timeline ========= */
-.timeline {
-  position: relative;
-  border-left: 1px solid var(--color-border);
-  margin-left: 12px;
-  padding-left: 12px;
-}
-
-.timeline li {
-  margin: 0 0 18px 0;
-  position: relative;
-}
-
-.dot {
-  position: absolute;
-  left: -22px;
-  top: 0;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  color: #fff;
-  text-align: center;
-  font: 700 0.75rem/22px var(--font-family);
-  box-shadow: 0 0 0 4px var(--color-white);
-}
-
-.dot--emerald {
-  background: var(--color-success-text);
-}
-.dot--amber {
-  background: var(--color-warn-text);
-}
-
-/* ========= SoftMap (fondo con brumas) ========= */
-.softmap {
-  position: relative;
-  overflow: hidden;
-}
-
-.softmap.card {
-  padding: 24px;
-}
-
-/* capa base bruma gris (usa color-muted como componente) */
-.softmap::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    900px 450px at 10% -10%,
-    color-mix(in srgb, var(--color-muted) 18%, transparent),
-    transparent
-  );
-}
-
-/* brumas con tintes semánticos */
-.softmap--emerald::before {
-  background: radial-gradient(
-      900px 450px at 10% -10%,
-      color-mix(in srgb, var(--color-muted) 18%, transparent),
-      transparent
-    ),
-    radial-gradient(
-      800px 400px at 90% 110%,
-      color-mix(in srgb, var(--color-success-text) 12%, transparent),
-      transparent
-    );
-}
-
-.softmap--amber::before {
-  background: radial-gradient(
-      900px 450px at 10% -10%,
-      color-mix(in srgb, var(--color-muted) 18%, transparent),
-      transparent
-    ),
-    radial-gradient(
-      800px 400px at 90% 110%,
-      color-mix(in srgb, var(--color-warn-text) 12%, transparent),
-      transparent
-    );
-}
-
-/* ========= Tipos / colores de texto ========= */
+/* Tipos / colores de texto */
 .h1,
 h1,
 .h2,
@@ -266,12 +165,13 @@ h4 {
   color: var(--color-muted);
 }
 
-/* ========= Accesibilidad / motion ========= */
+/* Accesibilidad */
 :focus-visible {
-  outline: 2px solid var(--color-accent); /* antes --focus */
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
+/* Motion reduce (una sola vez) */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;
@@ -282,7 +182,534 @@ h4 {
   }
 }
 
-/* ========= Breakpoints ========= */
+/* =======================
+   TIMELINE / SOFTMAP
+   ======================= */
+.timeline {
+  position: relative;
+  border-left: 1px solid var(--color-border);
+  margin-left: 12px;
+  padding-left: 12px;
+}
+.timeline li {
+  margin: 0 0 18px 0;
+  position: relative;
+}
+.dot {
+  position: absolute;
+  left: -22px;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  text-align: center;
+  font: 700 0.75rem/22px var(--font-family);
+  box-shadow: 0 0 0 4px var(--color-white);
+}
+.dot--emerald {
+  background: var(--color-success-text);
+}
+.dot--amber {
+  background: var(--color-warn-text);
+}
+
+.softmap {
+  position: relative;
+  overflow: hidden;
+}
+.softmap.card {
+  padding: 24px;
+}
+.softmap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    900px 450px at 10% -10%,
+    color-mix(in srgb, var(--color-muted) 18%, transparent),
+    transparent
+  );
+}
+/* brumas temáticas */
+.softmap--emerald::before {
+  background: radial-gradient(
+      900px 450px at 10% -10%,
+      color-mix(in srgb, var(--color-muted) 18%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      800px 400px at 90% 110%,
+      color-mix(in srgb, var(--color-success-text) 12%, transparent),
+      transparent
+    );
+}
+.softmap--amber::before {
+  background: radial-gradient(
+      900px 450px at 10% -10%,
+      color-mix(in srgb, var(--color-muted) 18%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      800px 400px at 90% 110%,
+      color-mix(in srgb, var(--color-warn-text) 12%, transparent),
+      transparent
+    );
+}
+
+/* =======================
+   TEMA: CAFÉ — SANDONÁ
+   ======================= */
+.origen-page.theme--sandona .hero {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface-1) 72%, #ffffff),
+    var(--color-fond)
+  );
+}
+.origen-page.theme--sandona .badge {
+  border-color: var(--color-success-border);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+/* Café Sandoná — prefijo sdn- */
+.sdn-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sdn-icon {
+  color: color-mix(in srgb, var(--color-success-text) 75%, var(--color-text));
+}
+.sdn-stat-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.sdn-stat-body .muted {
+  font-size: var(--font-size-100);
+}
+.sdn-value {
+  font-weight: var(--font-weight-bold);
+}
+
+.sdn-feature-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.sdn-feature-title {
+  font-weight: var(--font-weight-semibold);
+}
+.sdn-step-title {
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 2px 0;
+}
+
+.sdn-softmap-head {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.sdn-softmap-svg {
+  margin-top: 12px;
+  width: 100%;
+  height: 160px;
+  color: var(--color-success-text);
+}
+.sdn-softmap-coords {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.sdn-gallery {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+.sdn-gallery-item {
+  padding: 0;
+  overflow: hidden;
+}
+.sdn-gallery-item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+}
+
+.sdn-videos {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+}
+.sdn-video {
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 16/9;
+}
+.sdn-video iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* =======================
+   TEMA: TOSTIÓN (rt-)
+   ======================= */
+.theme--tostion .hero {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface-1) 70%, #fff),
+    var(--color-fond)
+  );
+}
+.rt-badge {
+  border-color: var(--color-bill-border);
+  background: var(--color-bill-bg);
+  color: var(--color-bill-text);
+}
+
+.rt-chip {
+  display: grid;
+  gap: 6px;
+}
+.rt-chip__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rt-chip__label {
+  font-size: var(--font-size-100);
+}
+.rt-chip__value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.rt-icon {
+  color: color-mix(in srgb, var(--color-brand) 70%, var(--color-text));
+}
+.rt-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Grid de niveles más denso */
+.rt-grid--levels {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+
+/* Niveles / cards */
+.rt-feature {
+  transition: transform var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+.rt-feature:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.rt-feature__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.rt-feature__title {
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+}
+.rt-feature__body {
+  font-size: var(--font-size-200);
+}
+.rt-feature__range {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+/* Fases */
+.rt-stages {
+  display: grid;
+  gap: 12px;
+}
+.rt-stage {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: start;
+}
+.rt-stage__col {
+  grid-column: span 3;
+}
+.rt-stage__col--title {
+  grid-column: span 3;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.rt-stage__title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: 0;
+}
+.rt-stage__label {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  margin: 0 0 4px 0;
+}
+.rt-stage__value {
+  color: var(--color-text);
+}
+
+/* Banda de color (roast strip) */
+.rt-strip__bar {
+  height: 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: linear-gradient(
+    90deg,
+    #c8945b 0%,
+    #a66c3a 25%,
+    #7a3e15 50%,
+    #4b2a1b 75%,
+    #2b1a12 100%
+  );
+}
+.rt-strip__labels {
+  margin-top: 6px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+/* Curva */
+.rt-curve__svg {
+  width: 100%;
+  height: 220px;
+  color: color-mix(in srgb, var(--color-brand) 70%, var(--color-text));
+}
+.rt-curve__note {
+  margin-top: 8px;
+  font-size: 0.78rem;
+}
+.rt-footnote {
+  margin-top: 6px;
+  font-size: 0.78rem;
+}
+
+/* =======================
+   TEMA: PANELA — ORIGEN (pn-)
+   ======================= */
+.theme--panela .hero {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface-1) 70%, #fff),
+    var(--color-fond)
+  );
+}
+.theme--panela .badge {
+  border-color: var(--color-bill-border);
+  background: var(--color-bill-bg);
+  color: var(--color-bill-text);
+}
+
+/* Panela origen — prefijo pn- */
+.pn-stat__row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.pn-stat__label {
+  font-size: var(--font-size-100);
+}
+.pn-stat__value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.pn-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pn-icon {
+  color: color-mix(in srgb, var(--color-brand) 65%, var(--color-text));
+}
+
+.pn-feature {
+  transition: transform var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+.pn-feature:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.pn-feature__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.pn-feature__title {
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+}
+
+.pn-step__title {
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 2px 0;
+}
+
+.pn-softmap__head {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.pn-softmap__svg {
+  margin-top: 12px;
+  width: 100%;
+  height: 160px;
+  color: var(--color-warn-text);
+}
+.pn-softmap__coords {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.pn-gallery {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+.pn-gallery__item {
+  padding: 0;
+  overflow: hidden;
+}
+.pn-gallery__item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  aspect-ratio: 4/3;
+}
+
+.pn-videos {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+}
+.pn-video {
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 16/9;
+}
+.pn-video iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* =======================
+   TEMA: RECETAS PANELA (rx-)
+   ======================= */
+.recipes--panela .hero {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface-1) 70%, #fff),
+    var(--color-fond)
+  );
+}
+
+/* Card de receta mejorada */
+.rx-card {
+  overflow: hidden;
+  padding: 0;
+}
+.rx-thumb {
+  height: 180px;
+  border-bottom: 1px solid var(--color-border);
+}
+.rx-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rx-head {
+  padding: 14px 14px 0 14px;
+}
+.rx-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rx-stats {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rx-title {
+  margin: 6px 0 6px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+.rx-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rx-body {
+  padding: 0 14px 14px;
+}
+.rx-sec {
+  margin-top: 10px;
+}
+.rx-sec__title {
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 6px;
+  color: var(--color-brand);
+}
+
+/* Listas */
+.rx-list {
+  margin: 0;
+  padding: 0 0 0 18px;
+}
+.rx-list--bullets li {
+  list-style: disc;
+  margin-bottom: 4px;
+}
+.rx-list--steps li {
+  list-style: decimal;
+  margin-bottom: 6px;
+}
+
+.rx-note {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+/* =======================
+   BREAKPOINTS
+   ======================= */
 @media (max-width: 1024px) {
   .container {
     padding: 20px;
@@ -291,7 +718,6 @@ h4 {
     padding: 24px;
   }
 }
-
 @media (max-width: 768px) {
   .container {
     padding: 16px;
@@ -307,8 +733,15 @@ h4 {
     padding: 14px;
     border-radius: 14px;
   }
-}
 
+  .rt-stage {
+    grid-template-columns: 1fr;
+  }
+  .rt-stage__col,
+  .rt-stage__col--title {
+    grid-column: auto;
+  }
+}
 @media (max-width: 480px) {
   .container {
     padding: 12px;
@@ -328,15 +761,26 @@ h4 {
   .card {
     padding: 12px;
   }
+
+  .rt-curve__svg {
+    height: 200px;
+  }
+  .sdn-softmap-svg,
+  .pn-softmap__svg {
+    height: 140px;
+  }
+  .rx-thumb {
+    height: 160px;
+  }
 }
 
-/* ========= Tema gris (aplícalo con .theme--gris en el contenedor) ========= */
-/* Nota: no redefinimos :root; usamos tonos de tus tokens para conservar consistencia */
+/* =======================
+   TEMA GRIS (opcional)
+   ======================= */
 .theme--gris .origen-page,
 .theme--gris .recipes-page {
   background: color-mix(in srgb, var(--color-fond) 40%, #e1e2e4);
 }
-
 .theme--gris .hero {
   background: linear-gradient(
     180deg,
@@ -344,13 +788,11 @@ h4 {
     color-mix(in srgb, var(--color-fond) 60%, #e1e2e4)
   );
 }
-
 .theme--gris .card,
 .theme--gris .hero__link {
   background: var(--color-white);
   border-color: color-mix(in srgb, var(--color-border) 70%, #d9dde3);
 }
-
 .theme--gris .hero__link:hover {
   background: color-mix(in srgb, var(--color-surface-2) 50%, #edf1f6);
 }

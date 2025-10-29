@@ -17,7 +17,7 @@ const getImageUrl = (path) => {
   // Si ya viene absoluta (http/https), úsala tal cual
   if (/^https?:\/\//i.test(path)) return path;
 
-  const base = getBaseUrl(); // 👈 LLAMAR la función
+  const base = getBaseUrl(); 
   // path comenzando por /uploads/** (backend sirve estático sin /api)
   if (path.startsWith("/uploads")) return `${base}${path}`;
   // si guardaste sólo el filename, manda a carpeta products
@@ -274,23 +274,25 @@ const MyOrdersPage = () => {
                     <h4>Datos de envío</h4>
                     <div className="ship">
                       <div className="ship__item">
-                        <span className="ship__label">Transportadora</span>
+                        <span className="ship__label">Transportadora: </span>
                         <b className="ship__value">
-                          {order.shipping?.carrier || "—"}
+                          {order.shippingCompany || "—"}
                         </b>
                       </div>
                       <div className="ship__item">
-                        <span className="ship__label">No. de guía</span>
+                        <span className="ship__label">
+                          Número de guía:
+                        </span>
                         <b className="ship__value">
-                          {order.shipping?.tracking || "—"}
+                          {order.trackingNumber || "—"}
                         </b>
                       </div>
                       <div className="ship__item ship__item--full">
                         <span className="ship__label">
-                          Comentario del administrador
+                          Comentario del administrador:
                         </span>
                         <p className="ship__note">
-                          {order.shipping?.note || "—"}
+                          {order.adminComment || "—"}
                         </p>
                       </div>
                     </div>

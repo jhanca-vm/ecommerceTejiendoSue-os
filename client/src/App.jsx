@@ -1,5 +1,10 @@
 // src/App.jsx
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -72,11 +77,13 @@ async function seedCsrf() {
 }
 
 function AppShell() {
-    const location = useLocation();
-    const { user } = useContext(AuthContext);
-    const isAdmin = user?.role === "admin";
-    const isAdminRoute = location.pathname.startsWith("/admin");
+  
+  const location = useLocation();
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === "admin";
+  const isAdminRoute = location.pathname.startsWith("/admin");
   const showFooter = !isAdmin && !isAdminRoute;
+
   return (
     <>
       <header className="site-header">

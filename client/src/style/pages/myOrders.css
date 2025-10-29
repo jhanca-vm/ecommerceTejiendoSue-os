@@ -319,6 +319,7 @@
 .ship__label {
   color: var(--color-muted);
   font-size: var(--font-size-100);
+  padding-right: 10px;
 }
 
 .ship__value {

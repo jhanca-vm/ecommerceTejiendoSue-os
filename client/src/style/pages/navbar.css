@@ -11,7 +11,7 @@
 }
 
 .site-main {
-  padding-top: 70px; 
+  padding-top: 70px;
 }
 
 /* ====== SHELL ====== */
@@ -167,6 +167,7 @@
   position: relative;
 }
 
+/* ====== BADGES (overlay) ====== */
 .notification-badge,
 .cart-badge,
 .badge-inline {
@@ -183,37 +184,47 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  line-height: 1;
+  z-index: 2; /* sobre el SVG */
+  pointer-events: none; /* no captura clicks */
 }
 
-/* Variantes inline que no son absolutas */
+/* Variantes inline que no son absolutas (p.ej. en texto del drawer) */
 .badge-inline {
   position: static;
   margin-left: 0.35rem;
+  z-index: auto;
+  pointer-events: auto;
 }
 
-/* Usuario */
+/* ====== USER BOX (bienvenida responsiva) ====== */
 .user-box {
   display: flex;
   align-items: center;
   gap: 0.55rem;
+  white-space: nowrap;
 }
 .user-avatar {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--color-accent), #f7c86b);
   color: var(--color-white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  place-items: center;
   font-weight: var(--font-weight-bold);
   font-size: 0.9rem;
+  flex: 0 0 30px;
 }
 .nav-user {
   color: #444;
   font-weight: 600;
+  line-height: 1.15;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: clamp(12px, 2vw, 14px);
 }
-
 .logout-button {
   background: transparent;
   border: 1px solid #e7d7be;
@@ -235,15 +246,29 @@
   margin-right: 0.2rem;
 }
 
-/* Reemplaza .icon-btn/.account-btn antiguos por .btn.btn--icon */
+/* ====== ICON BUTTON: normaliza caja y ancla el badge ====== */
 .icon-btn,
 .account-btn {
+  /* reset controlado */
   all: unset;
+  position: relative; /* padre posicionado para el badge */
+  display: inline-flex; /* caja cuadrada y centrada */
+  align-items: center;
+  justify-content: center;
+  width: 42px; /* hit-area consistente */
+  height: 42px;
+  line-height: 1; /* evita baseline rara */
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+.icon-btn:hover,
+.account-btn:hover {
+  background: rgba(122, 62, 21, 0.07);
 }
 .icon-btn svg,
 .account-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: block;
   stroke: currentColor;
   fill: none;
@@ -350,6 +375,15 @@
   display: flex;
   gap: 0.5rem;
   padding: 0.75rem 1rem 0.25rem;
+}
+/* Consistencia de los icon buttons en el drawer */
+.drawer .icon-btn {
+  width: 40px;
+  height: 40px;
+}
+.drawer .icon-btn svg {
+  width: 22px;
+  height: 22px;
 }
 
 /* Buscador compacto en drawer */
@@ -575,5 +609,24 @@
 @media (min-width: 921px) {
   .account-btn {
     display: none;
+  }
+}
+
+/* XS: ocultar texto del saludo; sólo avatar */
+@media (max-width: 480px) {
+  .nav-user {
+    display: none;
+  }
+}
+/* SM: mostrar con elipsis */
+@media (min-width: 481px) and (max-width: 640px) {
+  .nav-user {
+    max-width: 180px;
+  }
+}
+/* MD+: más holgado */
+@media (min-width: 641px) {
+  .nav-user {
+    max-width: 320px;
   }
 }

@@ -1,5 +1,5 @@
 // src/App.jsx
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -13,6 +13,10 @@ import { setCsrfToken } from "./api/csrfStore";
 /* Loader context */
 import { LoadingProvider } from "./contexts/LoadingContext";
 import LoadingOverlay from "./components/LoadingOverlay";
+
+/* Contexto de auth para saber el rol */
+import { useContext } from "react";
+import { AuthContext } from "./contexts/AuthContext";
 
 /* Páginas públicas */
 import ProductListPage from "./pages/ProductListPage";
@@ -68,6 +72,11 @@ async function seedCsrf() {
 }
 
 function AppShell() {
+    const location = useLocation();
+    const { user } = useContext(AuthContext);
+    const isAdmin = user?.role === "admin";
+    const isAdminRoute = location.pathname.startsWith("/admin");
+  const showFooter = !isAdmin && !isAdminRoute;
   return (
     <>
       <header className="site-header">
@@ -168,9 +177,11 @@ function AppShell() {
         </Routes>
       </main>
 
-      <footer className="site-footer">
-        <Footer />
-      </footer>
+      {showFooter && (
+        <footer className="site-footer">
+          <Footer />
+        </footer>
+      )}
 
       <ToastContainer position="top-right" autoClose={3000} />
     </>

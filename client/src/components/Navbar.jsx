@@ -25,9 +25,6 @@ const isMatch = (pathname, matcher) => {
 
 /** ===================== MENÚ CONFIG ===================== */
 const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
-  /*const dynArtesanias = Array.isArray(dynamic.artesanias)
-    ? dynamic.artesanias
-    : [];*/
   const dynCafe = Array.isArray(dynamic.cafe) ? dynamic.cafe : [];
   const dynPanela = Array.isArray(dynamic.panela) ? dynamic.panela : [];
   const dynOtros = Array.isArray(dynamic.otros) ? dynamic.otros : [];
@@ -40,7 +37,6 @@ const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
           label: "Artesanías",
           to: "/artesanias",
           activeMatch: /^\/artesanias(\/|$)/,
-          //children: dynArtesanias,
           children: [
             {
               label: "Sombrero",
@@ -147,7 +143,6 @@ const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
             label: "Artesanías",
             to: "/artesanias",
             activeMatch: /^\/artesanias(\/|$)/,
-            //children: dynArtesanias,
             children: [
               {
                 label: "Sombrero",
@@ -326,7 +321,7 @@ const Navbar = () => {
   const location = useLocation();
 
   const [showConfirm, setShowConfirm] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null); // índice abierto o null
+  const [openDropdown, setOpenDropdown] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileOpenIndex, setMobileOpenIndex] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -511,7 +506,6 @@ const Navbar = () => {
                           navigate(item.to);
                           return;
                         }
-                        // toggle click-only
                         setOpenDropdown((cur) => (cur === idx ? null : idx));
                       }}
                       onKeyDown={(e) => {
@@ -523,7 +517,6 @@ const Navbar = () => {
                         ) {
                           e.preventDefault();
                           setOpenDropdown(idx);
-                          // foco al primer link del submenú
                           setTimeout(() => {
                             const first = document.querySelector(
                               `#${dropdownId} .dropdown-link`
@@ -573,7 +566,6 @@ const Navbar = () => {
                               }`}
                               to={child.to}
                               role="menuitem"
-                              // Navegar y cerrar ANTES del desmontaje
                               onMouseDown={(e) => {
                                 e.preventDefault();
                                 setOpenDropdown(null);
@@ -584,7 +576,6 @@ const Navbar = () => {
                                 }
                                 navigate(child.to);
                               }}
-                              // Evita doble navegación por click posterior
                               onClick={(e) => e.preventDefault()}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {

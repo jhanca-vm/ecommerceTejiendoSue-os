@@ -36,6 +36,7 @@ import { PanelaSandonaPage } from "./pages/user/panela/PanelaSandonaPage";
 import PanelaRecipesPage from "./pages/user/panela/RecetasPanelaPage";
 import TostionCafePage from "./pages/user/cafe/TostionCafePage";
 import ProfilePage from "./pages/ProfilePage";
+import NosotrosPage from "./pages/user/NosotrosPage";
 
 /* Páginas privadas (user) */
 import PrivateRoute from "./routes/PrivateRoutes";
@@ -116,6 +117,7 @@ function AppShell() {
             path="/reset-password/:token"
             element={<ResetPasswordPage />}
           />
+          <Route path="/nosotros" element={<NosotrosPage />} />
           <Route path="/profile" element={<ProfilePage />} />
 
           {/* Complementos */}

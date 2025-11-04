@@ -1,5 +1,7 @@
+// src/blocks/admin/OrderCardBlock.jsx
+
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import ConfirmModal from "../ConfirmModalBlock";
 import { formatCOP } from "../../utils/currency";
@@ -23,8 +25,14 @@ const labelFor = (k) => {
   }
 };
 
-const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
+/**
+ * Ahora este componente acepta una prop nueva:
+ * - currentSearch: string con la query actual de filtros, ej: "?status=enviado&page=2&q=gomez&sort=-createdAt"
+ *   Si no te la pasan, cae al location.search (por compatibilidad).
+ */
+const OrderCardBlock = ({ order, onStatusChange, onCancel, currentSearch }) => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTitle, setConfirmTitle] = useState("");
@@ -107,6 +115,10 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
 
   const sinceCurrent = fmtDate(order.currentStatusAt || order.updatedAt);
 
+  // Usa la query que viene por props; si no hay, usa la del location por compatibilidad
+  const search =
+    typeof currentSearch === "string" ? currentSearch : location.search || "";
+
   return (
     <article className="oc">
       <header className="oc__head">
@@ -165,7 +177,12 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
         <div className="oc__spacer" />
         <button
           className="btn btn--detail"
-          onClick={() => navigate(`/admin/orders/${order._id}`)}
+          onClick={() => {
+            const returnTo = `${location.pathname}${search}`;
+            const detailUrl = `/admin/orders/${order._id}${search}`;
+            sessionStorage.setItem("orders.returnTo", returnTo);
+            navigate(detailUrl, { state: { returnTo } });
+          }}
         >
           Ver detalle
         </button>
@@ -220,7 +237,6 @@ const OrderCardBlock = ({ order, onStatusChange, onCancel }) => {
         </table>
       </div>
 
-      {/* Fechas por estado (si el backend las envía) */}
       {order?.statusTimestamps && (
         <details className="oc__timeline">
           <summary>Fechas por estado</summary>

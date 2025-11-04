@@ -28,6 +28,12 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [dateError, setDateError] = useState("");
 
+  // Orden (por defecto: antiguos → recientes)
+  const [sortBy, setSortBy] = useState("statusDate"); 
+  const [sortDir, setSortDir] = useState("asc");
+
+  const nf = useMemo(() => new Intl.NumberFormat("es-CO"), []);
+
   useEffect(() => {
     fetchOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,7 +120,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
       const search = searchFilter.trim().toLowerCase();
       const matchSearch =
         !search ||
-        order._id.toLowerCase().includes(search) ||
+        String(order._id).toLowerCase().includes(search) ||
         order.user?.email?.toLowerCase().includes(search) ||
         order.user?.name?.toLowerCase().includes(search) ||
         (order.items || []).some(
@@ -139,6 +145,27 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
     });
   }, [orders, searchFilter, statusFilter, dateRange, dateError]);
 
+  // Ordenamiento sin mutar
+  const sortedOrders = useMemo(() => {
+    const pickDate = (o) =>
+      sortBy === "statusDate"
+        ? o.currentStatusAt || o.updatedAt || o.createdAt
+        : o.createdAt;
+
+    const toTs = (d) => (d ? new Date(d).getTime() : 0);
+    const dir = sortDir === "asc" ? 1 : -1;
+
+    return [...filteredOrders].sort((a, b) => {
+      const ta = toTs(pickDate(a));
+      const tb = toTs(pickDate(b));
+      if (ta === tb) return 0;
+      return ta < tb ? -1 * dir : 1 * dir;
+    });
+  }, [filteredOrders, sortBy, sortDir]);
+
+  // Conteo exacto de lo que se imprime
+  const totalCount = sortedOrders.length;
+
   // Helper para unit price
   const getUnit = (item) =>
     Number(
@@ -148,15 +175,14 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         0
     );
 
-  // Exportar PDF
+  // Exportar PDF / Excel: usan sortedOrders para coincidir con la vista
   const exportToPDF = () => {
     if (dateError) return alert(dateError);
 
-    // 1) Normalizar datos -> contrato esperado por el esquema
-    const rows = filteredOrders.flatMap((order) =>
+    const rows = sortedOrders.flatMap((order) =>
       (order.items || []).map((item) => ({
         createdAt: dayjs(order.createdAt).format("YYYY-MM-DD HH:mm"),
-        pedido: `${order._id.slice(-8).toUpperCase()}` || "N/A",
+        pedido: `${String(order._id).slice(-8).toUpperCase()}` || "N/A",
         userEmail: order.user?.email || "N/A",
         product: item.product?.name || "Eliminado",
         size: item.size?.label || "-",
@@ -177,7 +203,6 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
       }))
     );
 
-    // 2) Meta (encabezado y footer estándar)
     const friendlyName = (searchFilter || statusFilter || "todos").replace(
       /\s+/g,
       "_"
@@ -208,7 +233,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
   const exportToExcel = () => {
     if (dateError) return alert(dateError);
 
-    const rows = filteredOrders.flatMap((order) =>
+    const rows = sortedOrders.flatMap((order) =>
       (order.items || []).map((item) => ({
         ID: order._id,
         Usuario: order.user?.email || "N/A",
@@ -244,7 +269,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
     saveAs(data, `pedidos_${friendlyName}_${today}.xlsx`);
   };
 
-  const hasResults = filteredOrders.length > 0;
+  const hasResults = totalCount > 0;
 
   return (
     <div className="ao">
@@ -265,7 +290,47 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         exportToExcel={exportToExcel}
         dateError={dateError}
         hasResults={hasResults}
+        // Si luego quieres mostrar el total dentro del propio componente de filtros:
+        totalCount={totalCount}
       />
+
+      {/* Barra de orden + contador al frente */}
+      <div
+        className="ao__sortbar"
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          margin: "12px 0",
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Contador accesible y seguro (coincide con lo que se imprime) */}
+        <div className="af">
+          <span className="af__label">Total: {nf.format(totalCount)}</span>
+
+          <div />
+
+          <label className="af__label">Ordenar por:</label>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="af__select"
+          >
+            <option value="statusDate">Estado actual</option>
+            <option value="createdAt">Creación</option>
+          </select>
+
+          <select
+            value={sortDir}
+            onChange={(e) => setSortDir(e.target.value)}
+            className="af__select"
+          >
+            <option value="asc">Antiguos → Recientes</option>
+            <option value="desc">Recientes → Antiguos</option>
+          </select>
+        </div>
+      </div>
 
       {loading ? (
         <div className="ao__skeleton">
@@ -284,6 +349,8 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
               setStatusFilter("pendiente");
               setSearchFilter("");
               setDateRange({ from: "", to: "" });
+              setSortBy("statusDate");
+              setSortDir("asc");
             }}
           >
             Limpiar filtros
@@ -291,7 +358,7 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
         </div>
       ) : (
         <div className="ao__list">
-          {filteredOrders.map((order) => (
+          {sortedOrders.map((order) => (
             <OrderCardBlock
               key={order._id}
               order={order}
@@ -306,3 +373,5 @@ const AdminOrdersPage = ({ statusFilterProp = "pendiente" }) => {
 };
 
 export default AdminOrdersPage;
+
+

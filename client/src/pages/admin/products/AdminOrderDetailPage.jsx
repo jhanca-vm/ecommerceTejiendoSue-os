@@ -217,8 +217,7 @@ const AdminOrderDetailPage = () => {
       // Post-Tabla
       paymentBox: {
         title: "Medios de pago",
-        lines: [
-        ],
+        lines: [],
       },
 
       // Observaciones (izquierda)
@@ -278,7 +277,8 @@ const AdminOrderDetailPage = () => {
     <div className="admin-order-detail ">
       <div className="section">
         <h3 className="section__title">
-          <FaClipboardList className="icon" /> Información del pedido: {order._id.slice(-8).toUpperCase() || "SIN-ID"}
+          <FaClipboardList className="icon" /> Información del pedido:{" "}
+          {order._id.slice(-8).toUpperCase() || "SIN-ID"}
         </h3>
         <p className="field">
           <strong>

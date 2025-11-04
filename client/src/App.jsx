@@ -98,7 +98,7 @@ function AppShell() {
       {/* Manejo global de HTTP + transiciones de ruta */}
       <GlobalHttpHandler
         showOnRouteChange={true}
-        routeMinMs={600}
+        routeMinMs={200}
         routeMaxMs={1400}
       />
 

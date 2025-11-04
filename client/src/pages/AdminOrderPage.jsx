@@ -13,7 +13,6 @@ import logo from "../assets/manos.png";
 
 
 const AdminSalesHistoryPage = () => {
-
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,7 +75,9 @@ const AdminSalesHistoryPage = () => {
       if (opts.to) params.append("to", opts.to);
       if (opts.status) params.append("status", opts.status);
 
-      const res = await apiUrl.get(`/orders/sales-history?${params.toString()}`);
+      const res = await apiUrl.get(
+        `/orders/sales-history?${params.toString()}`
+      );
       setRows(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       console.error(e);
@@ -88,7 +89,7 @@ const AdminSalesHistoryPage = () => {
 
   // Carga inicial
   useEffect(() => {
-    fetchData({}); 
+    fetchData({});
   }, []);
 
   // Validación de fechas (si NO hay mes seleccionado)
@@ -158,112 +159,138 @@ const AdminSalesHistoryPage = () => {
 
   const toLocal = (d) => (d ? new Date(d).toLocaleString() : "");
 
-  // Sumatorios
-  const totals = useMemo(() => {
-    let sumTotal = 0,
-      sumQty = 0;
+  // Sumatorios + conteos (total vendido, unidades, pedidos únicos, clientes únicos)
+  const aggregates = useMemo(() => {
+    let sumTotal = 0;
+    let sumQty = 0;
+
+    const orderIds = new Set();
+    const clientIds = new Set();
+
     for (const r of rows) {
-      sumTotal += Number(r.total) || 0;
-      sumQty += Number(r.quantity) || 0;
+      // Totales
+      const totalNum =
+        typeof r.total === "number" ? r.total : Number(r.total || 0);
+      const qtyNum =
+        typeof r.quantity === "number" ? r.quantity : Number(r.quantity || 0);
+
+      sumTotal += isNaN(totalNum) ? 0 : totalNum;
+      sumQty += isNaN(qtyNum) ? 0 : qtyNum;
+
+      // Pedidos únicos
+      if (r.orderId) orderIds.add(String(r.orderId));
+
+      // Cliente único: prioriza userId, luego email, luego nombre
+      const clientKey = r.userId ?? r.userEmail ?? r.userName;
+      if (clientKey) clientIds.add(String(clientKey));
     }
-    return { sumTotal, sumQty };
+
+    return {
+      sumTotal, // dinero vendido (número)
+      sumQty, // unidades vendidas (número)
+      totalOrders: orderIds.size, // # de pedidos
+      totalClients: clientIds.size, // # de clientes
+    };
   }, [rows]);
 
   // ======= Export PDF (COP) =======
-const exportPDF = () => {
-  // valida solo si aplicas rango manual (tu lógica actual)
-  if (!month && dateError) {
-    alert(dateError);
-    return;
-  }
-
-  try {
-    // 1) Normalizar filas para el schema genérico
-    const normalizedRows = (rows || []).map((r) => {
-      const unitPriceNum =
-        typeof r.unitPrice === "number" ? r.unitPrice : Number(r.unitPrice || 0);
-      const totalNum =
-        typeof r.total === "number" ? r.total : Number(r.total || 0);
-
-      return {
-        date: toLocal(r.date),
-        user: r.userName || "Desconocido",
-        product: r.productName || "Producto eliminado",
-        variant: `${r.sizeLabel || "?"} / ${r.colorName || "?"}`,
-        unitPrice: formatCOP(unitPriceNum),
-        qty: String(r.quantity ?? 0),
-        total: formatCOP(totalNum),
-        stock:
-          typeof r.stockAtPurchase === "number"
-            ? String(r.stockAtPurchase)
-            : String(r.stockAtPurchase ?? "-"),
-        status: r.status || "",
-      };
-    });
-
-    // 2) Total vendido
-    const sumTotalNumber = (rows || []).reduce((acc, r) => {
-      const n = typeof r.total === "number" ? r.total : Number(r.total || 0);
-      return acc + (isNaN(n) ? 0 : n);
-    }, 0);
-
-    // 3) Panel de parámetros usando los estados de ESTE componente
-    let clientPanelLines = [];
-    if (month) {
-      const { from: mFrom, toDisplay: mTo } = monthToRange(month);
-      clientPanelLines.push(`Mes: ${month}`);
-      if (mFrom) clientPanelLines.push(`Desde: ${mFrom}`);
-      if (mTo) clientPanelLines.push(`Hasta: ${mTo}`);
-    } else {
-      if (from) clientPanelLines.push(`Desde: ${dayjs(from).format("YYYY-MM-DD")}`);
-      if (to)   clientPanelLines.push(`Hasta: ${dayjs(to).format("YYYY-MM-DD")}`);
+  const exportPDF = () => {
+    // valida solo si aplicas rango manual (tu lógica actual)
+    if (!month && dateError) {
+      alert(dateError);
+      return;
     }
-    if (status) clientPanelLines.push(`Estado: ${status}`);
 
-    // 4) Meta para el motor
-    const meta = {
-      reportName: "Historial general de ventas",
-      ecommerceName: "Tejiendo Sueños",
-      printedAt: new Date(),
-      timezoneLabel: "Sandoná/Nariño",
-      logo,
+    try {
+      // 1) Normalizar filas para el schema genérico
+      const normalizedRows = (rows || []).map((r) => {
+        const unitPriceNum =
+          typeof r.unitPrice === "number"
+            ? r.unitPrice
+            : Number(r.unitPrice || 0);
+        const totalNum =
+          typeof r.total === "number" ? r.total : Number(r.total || 0);
 
-      // Recuadro derecho (máx 4 líneas)
-      otrosDatos: [
-        "Dirección: Sandoná, Nariño",
-        "Teléfono: +57 3xx xxx xxxx",
-        "Email: contacto@tejiendosuenos.co",
-      ].join("\n"),
+        return {
+          date: toLocal(r.date),
+          user: r.userName || "Desconocido",
+          product: r.productName || "Producto eliminado",
+          variant: `${r.sizeLabel || "?"} / ${r.colorName || "?"}`,
+          unitPrice: formatCOP(unitPriceNum),
+          qty: String(r.quantity ?? 0),
+          total: formatCOP(totalNum),
+          stock:
+            typeof r.stockAtPurchase === "number"
+              ? String(r.stockAtPurchase)
+              : String(r.stockAtPurchase ?? "-"),
+          status: r.status || "",
+        };
+      });
 
-      // Recuadro ancho bajo header (si hay algo que mostrar)
-      clientPanelTitle: "Parámetros del reporte",
-      clientPanelLines,     // puede ser []
+      // 2) Total vendido
+      const sumTotalNumber = (rows || []).reduce((acc, r) => {
+        const n = typeof r.total === "number" ? r.total : Number(r.total || 0);
+        return acc + (isNaN(n) ? 0 : n);
+      }, 0);
 
-      qrReserveWidth: 0,    // sin QR en este reporte
+      // 3) Panel de parámetros usando los estados de ESTE componente
+      let clientPanelLines = [];
+      if (month) {
+        const { from: mFrom, toDisplay: mTo } = monthToRange(month);
+        clientPanelLines.push(`Mes: ${month}`);
+        if (mFrom) clientPanelLines.push(`Desde: ${mFrom}`);
+        if (mTo) clientPanelLines.push(`Hasta: ${mTo}`);
+      } else {
+        if (from)
+          clientPanelLines.push(`Desde: ${dayjs(from).format("YYYY-MM-DD")}`);
+        if (to)
+          clientPanelLines.push(`Hasta: ${dayjs(to).format("YYYY-MM-DD")}`);
+      }
+      if (status) clientPanelLines.push(`Estado: ${status}`);
 
-      // Totales bajo la tabla
-      summaryLines: [`Total vendido: ${formatCOP(sumTotalNumber)}`],
+      // 4) Meta para el motor
+      const meta = {
+        reportName: "Historial general de ventas",
+        ecommerceName: "Tejiendo Sueños",
+        printedAt: new Date(),
+        timezoneLabel: "Sandoná/Nariño",
+        logo,
 
-      fileName: "historial_general_ventas.pdf",
-    };
+        // Recuadro derecho (máx 4 líneas)
+        otrosDatos: [
+          "Dirección: Sandoná, Nariño",
+          "Teléfono: +57 3xx xxx xxxx",
+          "Email: contacto@tejiendosuenos.co",
+        ].join("\n"),
 
-    // 5) Estilo (ajústalo a gusto)
-    const theme = {};
-    
+        // Recuadro ancho bajo header (si hay algo que mostrar)
+        clientPanelTitle: "Parámetros del reporte",
+        clientPanelLines, // puede ser []
 
-    // 6) Generar
-    generatePdf({
-      schema: salesHistorySchema,
-      rows: normalizedRows,
-      meta,
-      theme,
-      // sin limit → exporta todo lo filtrado
-    });
-  } catch (e) {
-    console.error(e);
-    alert("No se pudo exportar PDF.");
-  }
-};
+        qrReserveWidth: 0, // sin QR en este reporte
+
+        // Totales bajo la tabla
+        summaryLines: [`Total vendido: ${formatCOP(sumTotalNumber)}`],
+
+        fileName: "historial_general_ventas.pdf",
+      };
+
+      // 5) Estilo (ajústalo a gusto)
+      const theme = {};
+
+      // 6) Generar
+      generatePdf({
+        schema: salesHistorySchema,
+        rows: normalizedRows,
+        meta,
+        theme,
+        // sin limit → exporta todo lo filtrado
+      });
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo exportar PDF.");
+    }
+  };
 
   // ======= Export CSV (COP) =======
   const exportCSV = () => {
@@ -411,10 +438,12 @@ const exportPDF = () => {
       {/* Error fechas (sólo cuando se usa rango manual) */}
       {!month && dateError && <div role="alert">{dateError}</div>}
 
-      <div className="mb-2">
+      <div className="mb-2" role="status" aria-live="polite">
         <strong>Resumen:</strong>{" "}
-        <span>Total vendido: {formatCOP(totals.sumTotal)}</span>{" "}
-        <span className="ml-4">Unidades: {totals.sumQty}</span>
+        <span>Total vendido: {formatCOP(aggregates.sumTotal)}</span>{" "}
+        <span className="ml-4">Unidades: {aggregates.sumQty}</span>{" "}
+        <span className="ml-4">Pedidos: {aggregates.totalOrders}</span>{" "}
+        <span className="ml-4">Clientes: {aggregates.totalClients}</span>
       </div>
 
       {loading ? (

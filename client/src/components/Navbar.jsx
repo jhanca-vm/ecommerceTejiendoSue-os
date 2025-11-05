@@ -312,6 +312,18 @@ const menuConfig = ({ role, hidePublic, dynamic = {}, loading = false }) => {
   return publicGroup;
 };
 /** ======================================================= */
+/* ============ firts name ============*/
+const firstName = (name ) => {
+  const clean = String(name || "")
+    .trim()
+    .replace(/\s+/g, " "); // colapsa espacios
+  if (!clean) return "";
+  // si viene "Juan Pérez" -> "Juan"
+  // si viene "Super-Admin" (sin espacios) -> "Super-Admin"
+  // si viene "Armando Mora Usuario U" -> "Armando"
+  return clean.split(" ")[0];
+};
+/** ======================================================= */
 
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
@@ -398,12 +410,6 @@ const Navbar = () => {
     dynamic: sectioned,
     loading: catLoading,
   });
-
-  const capitalizeInitials = (name) =>
-    (name || "")
-      .split(" ")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ");
 
   const goSupportPath = user
     ? user.role === "admin"
@@ -698,7 +704,7 @@ const Navbar = () => {
                   </svg>
                 </Link>
 
-                <Link
+                {/*<Link
                   to={goSupportPath}
                   className={`nav-link support-link ${
                     isSupportActive ? "active" : ""
@@ -709,7 +715,7 @@ const Navbar = () => {
                   {unreadCount > 0 && (
                     <span className="notification-badge">{unreadCount}</span>
                   )}
-                </Link>
+                </Link>*/}
               </>
             )}
 
@@ -719,7 +725,7 @@ const Navbar = () => {
                   {user.name?.charAt(0)?.toUpperCase() ?? "U"}
                 </div>
                 <span className="nav-user">
-                  Bienvenido, {capitalizeInitials(user.name)}
+                  Bienvenido, {firstName(user.name) || "Usuario"}
                 </span>
                 <button
                   onClick={() => {

@@ -41,6 +41,7 @@ import NosotrosPage from "./pages/user/NosotrosPage";
 /* Páginas privadas (user) */
 import PrivateRoute from "./routes/PrivateRoutes";
 import CartPage from "./pages/CartPage";
+import CheckoutPage from "./pages/user/CheckoutPage"; 
 import MyOrders from "./pages/Myorders";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import FavoritesPage from "./pages/user/FavoritesPage";
@@ -142,6 +143,7 @@ function AppShell() {
           <Route element={<PrivateRoute allowedRoles={["user"]} />}>
             <Route path="/support" element={<SupportChatPage />} />
             <Route path="/cart" element={<CartPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/my-orders" element={<MyOrders />} />
             <Route path="/product/:id" element={<ProductDetailPage />} />
             <Route path="/favorites" element={<FavoritesPage />} />

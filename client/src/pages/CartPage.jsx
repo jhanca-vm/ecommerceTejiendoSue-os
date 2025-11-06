@@ -215,7 +215,7 @@ const CartPage = () => {
   const total = subtotal + shipping + taxes;
 
   // Payload para orden
-  const toOrderItems = () =>
+  const getOrderItemsPayload = () =>
     displayItems.map((item) => ({
       product: item.product?._id,
       size: item.size?._id ?? null,
@@ -224,7 +224,6 @@ const CartPage = () => {
     }));
 
   // Checkout
-  const [openModal, setOpenModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState({ open: false, humanCode: "" });
 
@@ -237,65 +236,8 @@ const CartPage = () => {
       showToast("Tu carrito está vacío.", "info");
       return;
     }
-    setOpenModal(true);
-  };
-
-  const confirmCheckout = async (shippingInfo) => {
-    setLoading(true);
-    try {
-      const items = toOrderItems();
-      const idem =
-        crypto?.randomUUID?.() ||
-        `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-      const { data } = await apiUrl.post(
-        `orders`,
-        { items, shippingInfo, idempotencyKey: idem, source: "cart" },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Idempotency-Key": idem,
-          },
-        }
-      );
-
-      const order = data.order;
-      const humanCode = `${new Date(order.createdAt || Date.now())
-        .toISOString()
-        .slice(0, 10)
-        .replace(/-/g, "")}-${String(order._id).slice(-6).toUpperCase()}`;
-
-      try {
-        await navigator.clipboard?.writeText(humanCode);
-      } catch {}
-
-      const waUrl = buildWhatsAppUrl(
-        ADMIN_WHATSAPP,
-        order,
-        { name: user?.name, email: user?.email },
-        shippingInfo,
-        {
-          humanCode,
-          includeSKU: true,
-          includeVariant: true,
-          includeImages: true,
-        }
-      );
-      window.open(waUrl, "_blank", "noopener,noreferrer");
-
-      clearCart();
-      setSuccess({ open: true, humanCode });
-      showToast(`Pedido creado: ${humanCode}`, "success");
-    } catch (err) {
-      showToast(
-        "Error al realizar el pedido: " +
-          (err?.response?.data?.error || "Intenta más tarde."),
-        "error"
-      );
-    } finally {
-      setLoading(false);
-      setOpenModal(false);
-    }
+    // Navega a la nueva página de checkout, pasando los items y el total
+    navigate("/checkout", { state: { items: getOrderItemsPayload(), total } });
   };
 
   return (
@@ -397,11 +339,6 @@ const CartPage = () => {
         </div>
       )}
 
-      <CheckoutModal
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        onConfirm={confirmCheckout}
-      />
       <SuccessOverlay
         open={success.open}
         humanCode={success.humanCode}

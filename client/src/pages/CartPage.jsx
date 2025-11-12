@@ -9,7 +9,6 @@ import apiUrl from "../api/apiClient";
 import CartItem from "../blocks/users/CartItem";
 import CheckoutModal from "../blocks/users/CheckoutModal";
 import { useToast } from "../contexts/ToastContext";
-import { buildWhatsAppUrl } from "../utils/whatsapp";
 import SuccessOverlay from "../blocks/SuccessOverlay";
 
 const ADMIN_WHATSAPP = "573147788069";

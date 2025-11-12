@@ -6,9 +6,8 @@ import apiUrl, { getBaseUrl } from "../../api/apiClient";
 import { AuthContext } from "../../contexts/AuthContext";
 import { useToast } from "../../contexts/ToastContext";
 import ProductPriceBlock from "../ProductPrice";
-import FavoriteButton from "./FavoriteButton";
-import CheckoutModal from "../users/CheckoutModal";
 import SuccessOverlay from "././../SuccessOverlay";
+import FavoriteButton from "./FavoriteButton";
 
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
 
@@ -130,7 +129,6 @@ const ProductDetailBlock = ({
   const baseUrl = getBaseUrl();
 
   const { user, token } = useContext(AuthContext); // ⬅️ token para comprar
-  const { showToast } = useToast();
   const navigate = useNavigate();
 
   /* ----- Lightbox state ----- */
@@ -138,6 +136,7 @@ const ProductDetailBlock = ({
   const [lbIndex, setLbIndex] = useState(0);
   const touchStartX = useRef(null);
 
+  const { showToast } = useToast();
   /*  Destacados*/
   const [recs, setRecs] = useState({
     similar: [],
@@ -313,91 +312,77 @@ const ProductDetailBlock = ({
   };
 
   /* ----- Comprar ahora ----- */
-  const [openBuyNow, setOpenBuyNow] = useState(false);
-  const [loadingBuyNow, setLoadingBuyNow] = useState(false);
-  const [success, setSuccess] = useState({ open: false, humanCode: "" });
-
   const handleBuyNow = () => {
     if (!user || user.role === "admin") {
       showToast("Debes iniciar sesión como usuario para comprar", "warning");
       return navigate("/login");
     }
-    if (!selectedSize || !selectedColor) {
-      showToast("Debes seleccionar talla y color", "warning");
-      return;
+
+    let itemToBuy = {
+      product: product._id,
+      quantity: Number(quantity) || 1,
+      size: null,
+      color: null,
+    };
+
+    let currentProductPrice =
+      typeof product.effectivePrice !== "undefined"
+        ? product.effectivePrice
+        : computeEffectiveFallback(product);
+
+    // Check if the product has variants and if selection is required
+    const hasVariants = product.variants && product.variants.length > 0;
+
+    if (hasVariants) {
+      if (!selectedSize || !selectedColor) {
+        showToast(
+          "Debes seleccionar una talla y un color para comprar",
+          "warning"
+        );
+        return; // Exit if variant selection is mandatory but missing
+      }
+
+      const variant = product.variants.find(
+        (v) =>
+          idVal(v.size) === selectedSize && idVal(v.color) === selectedColor
+      );
+
+      if (!variant) {
+        showToast("Variante no disponible", "error");
+        return;
+      }
+      if (variant.stock < quantity) {
+        showToast("Stock insuficiente para la cantidad seleccionada", "error");
+        return;
+      }
+
+      // Update itemToBuy with selected variant details
+      itemToBuy.size = selectedSize;
+      itemToBuy.color = selectedColor;
+      // If variant prices differ, update currentProductPrice here based on variant
+      // For now, assuming product.effectivePrice covers this or variants don't change price.
+    } else {
+      // If no variants, check overall product stock if applicable (assuming product.totalStock exists)
+      if (typeof product.totalStock === "number" && product.totalStock <= 0) {
+        // Check if totalStock is 0 or less
+        showToast("Producto agotado", "error");
+        return;
+      }
+      if (
+        typeof product.totalStock === "number" &&
+        product.totalStock < quantity
+      ) {
+        showToast("Stock insuficiente para la cantidad seleccionada", "error");
+        return;
+      }
     }
-    const variant = product.variants.find(
-      (v) => idVal(v.size) === selectedSize && idVal(v.color) === selectedColor
-    );
-    if (!variant) return showToast("Variante no disponible", "error");
-    if (variant.stock < quantity)
-      return showToast("Stock insuficiente", "error");
-    setOpenBuyNow(true);
-  };
 
-  const confirmBuyNow = async (shippingInfo) => {
-    setLoadingBuyNow(true);
-    try {
-      const idem =
-        crypto?.randomUUID?.() ||
-        `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const total = currentProductPrice * itemToBuy.quantity;
 
-      const items = [
-        {
-          product: product._id,
-          size: selectedSize,
-          color: selectedColor,
-          quantity: Number(quantity) || 1,
-        },
-      ];
-
-      const { data } = await apiUrl.post(
-        "orders",
-        { items, shippingInfo, idempotencyKey: idem },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Idempotency-Key": idem,
-          },
-        }
-      );
-
-      const order = data.order;
-      const humanCode = `${new Date(order.createdAt || Date.now())
-        .toISOString()
-        .slice(0, 10)
-        .replace(/-/g, "")}-${String(order._id).slice(-6).toUpperCase()}`;
-
-      try {
-        await navigator.clipboard?.writeText(humanCode);
-      } catch {}
-      const waUrl = buildWhatsAppUrl(
-        ADMIN_WHATSAPP,
-        order,
-        { name: user?.name, email: user?.email },
-        shippingInfo,
-        {
-          humanCode,
-          includeSKU: true,
-          includeVariant: true,
-          includeImages: true,
-        }
-      );
-      console.log(order.items);
-      window.open(waUrl, "_blank", "noopener,noreferrer");
-
-      showToast(`Pedido creado: ${humanCode}`, "success");
-      setSuccess({ open: true, humanCode });
-    } catch (err) {
-      showToast(
-        "Error al realizar el pedido: " +
-          (err?.response?.data?.error || "Intenta más tarde."),
-        "error"
-      );
-    } finally {
-      setLoadingBuyNow(false);
-      setOpenBuyNow(false);
-    }
+    // All checks passed, proceed to checkout
+    navigate("/checkout", {
+      state: { items: [itemToBuy], total: total },
+    });
   };
 
   /* ----- Precio ----- */
@@ -426,18 +411,6 @@ const ProductDetailBlock = ({
   const [previews, setPreviews] = useState([]);
 
   const fetchReviews = async () => {
-    const { data } = await apiUrl.get(`/reviews/product/${product._id}`, {
-      params: { page: 1, limit: 10 },
-    });
-    setReviews(Array.isArray(data?.items) ? data.items : []);
-    setStats(
-      data?.stats || {
-        avg: 0,
-        total: 0,
-        dist: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
-      }
-    );
-    setEligible(Boolean(data?.eligible ?? true));
     setLoadingReviews(true);
     try {
       const { data } = await apiUrl.get(`/reviews/product/${product._id}`, {
@@ -748,7 +721,7 @@ const ProductDetailBlock = ({
                 onClick={handleBuyNow}
                 type="button"
               >
-                {loadingBuyNow ? "Procesando..." : "Comprar ahora"}
+                Comprar ahora
               </button>
             </div>
 
@@ -1080,26 +1053,6 @@ const ProductDetailBlock = ({
           </div>
         )}
       </div>
-
-      {/* Modal de “Comprar ahora” */}
-      <CheckoutModal
-        open={openBuyNow}
-        onClose={() => setOpenBuyNow(false)}
-        onConfirm={confirmBuyNow}
-      />
-      <SuccessOverlay
-        open={success.open}
-        humanCode={success.humanCode}
-        onPrimary={() => {
-          setSuccess({ open: false, humanCode: "" });
-          navigate("/");
-        }}
-        onSecondary={() => {
-          setSuccess({ open: false, humanCode: "" });
-          navigate("/my-orders");
-        }}
-        onClose={() => setSuccess({ open: false, humanCode: "" })}
-      />
     </div>
   );
 };

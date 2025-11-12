@@ -125,7 +125,7 @@ export default function CheckoutPage() {
     }
   };
 
-  if (!orderItems) return null; // Evita renderizar si no hay estado
+  if (!orderItems) return null; 
 
   return (
     <>

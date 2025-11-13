@@ -2,9 +2,9 @@
 import { useState, useContext, useEffect } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { AuthContext } from "../../contexts/AuthContext";
-import { CartContext } from "../../contexts/CartContext";
+import { CartContext } from "../../contexts/CartContext"; // Para limpiar el carrito
 import { useToast } from "../../contexts/ToastContext";
-import apiUrl from "../../api/apiClient";
+import apiUrl, { getBaseUrl } from "../../api/apiClient";
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
 import SuccessOverlay from "../../blocks/SuccessOverlay";
 
@@ -17,15 +17,97 @@ const fmtCOP = (n) =>
     maximumFractionDigits: 0,
   });
 
+/**
+ * Hook para enriquecer los items del pedido.
+ * Si los items vienen solo con IDs (desde "Comprar ahora"),
+ * busca los detalles completos del producto en el backend.
+ */
+function useEnrichedOrderItems(initialItems) {
+  const [items, setItems] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const enrich = async () => {
+      if (!initialItems || initialItems.length === 0) {
+        setError("No hay productos para procesar.");
+        setLoading(false);
+        return;
+      }
+
+      // Revisa si el primer item ya tiene detalles (ej: `product.name`)
+      const isEnriched = initialItems[0]?.product?.name;
+
+      if (isEnriched) {
+        setItems(initialItems);
+        setLoading(false);
+        return;
+      }
+
+      // Si no están enriquecidos, busca los detalles
+      try {
+        const productIds = initialItems
+          .map((item) => item.product)
+          .filter(Boolean);
+        if (productIds.length === 0) {
+          setError("No se encontraron IDs de producto válidos.");
+          setLoading(false);
+          return;
+        }
+
+        // Usamos la ruta /bulk para eficiencia
+        const { data: products } = await apiUrl.get("products/bulk", {
+          params: { ids: productIds },
+        });
+
+        const productsMap = new Map(products.map((p) => [p._id, p]));
+
+        const enrichedItems = initialItems
+          .map((item) => {
+            const productDetails = productsMap.get(item.product);
+            if (!productDetails) return null; // Producto no encontrado, se podría filtrar
+
+            return {
+              ...item,
+              product: productDetails, // Reemplaza el ID por el objeto completo
+            };
+          })
+          .filter(Boolean); // Filtra los nulos
+
+        if (isMounted) {
+          setItems(enrichedItems);
+        }
+      } catch (err) {
+        console.error("Error enriqueciendo items:", err);
+        if (isMounted) {
+          setError("Error al cargar los detalles de los productos.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    enrich();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialItems]);
+
+  return { items, loading, error };
+}
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
   const { token, user } = useContext(AuthContext);
   const { clearCart } = useContext(CartContext);
-
-  // Recuperar datos del carrito pasados desde la navegación
-  const { items: orderItems, total } = location.state || {};
+  const baseUrl = getBaseUrl();
 
   const [shippingInfo, setShippingInfo] = useState({
     name: user?.name || "",
@@ -35,19 +117,32 @@ export default function CheckoutPage() {
     phone: user?.phone || "",
     notes: "",
   });
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState({ open: false, humanCode: "" });
 
-  // Si no hay items, redirigir al carrito
+  // 1. Recuperar datos del state de la navegación
+  const { items: initialOrderItems, total } = location.state || {};
+
+  // 2. Usar el hook para enriquecer los items si es necesario
+  const {
+    items: orderItems,
+    loading: loadingItems,
+    error: itemsError,
+  } = useEnrichedOrderItems(initialOrderItems);
+
+  // 3. Manejar errores o la ausencia de items
   useEffect(() => {
-    if (!orderItems || orderItems.length === 0) {
+    if (itemsError) {
+      showToast(itemsError, "error");
+      navigate("/cart");
+    } else if (!loadingItems && (!orderItems || orderItems.length === 0)) {
       showToast(
         "No hay productos para procesar. Volviendo al carrito.",
         "warning"
       );
       navigate("/cart");
     }
-  }, [orderItems, navigate, showToast]);
+  }, [orderItems, loadingItems, itemsError, navigate, showToast]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -68,13 +163,22 @@ export default function CheckoutPage() {
       );
     }
 
-    setLoading(true);
+    setSubmitting(true);
     try {
       const idem = crypto.randomUUID();
+
+      // Asegurarse de que los items enviados al backend solo contengan los IDs
+      const payloadItems = orderItems.map((item) => ({
+        product: item.product._id,
+        size: item.size,
+        color: item.color,
+        quantity: item.quantity,
+      }));
+
       const { data } = await apiUrl.post(
         `orders`,
         {
-          items: orderItems,
+          items: payloadItems,
           shippingInfo,
           idempotencyKey: idem,
           source: "checkout-page",
@@ -121,11 +225,23 @@ export default function CheckoutPage() {
         "error"
       );
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  if (!orderItems) return null; 
+  // Muestra un estado de carga mientras se enriquecen los productos
+  if (loadingItems) {
+    return (
+      <div
+        className="container"
+        style={{ padding: "2rem", textAlign: "center" }}
+      >
+        Cargando detalles del pedido...
+      </div>
+    );
+  }
+
+  if (!orderItems) return null;
 
   return (
     <>
@@ -207,9 +323,9 @@ export default function CheckoutPage() {
                 <button
                   type="submit"
                   className="btn btn--primary"
-                  disabled={loading}
+                  disabled={submitting}
                 >
-                  {loading
+                  {submitting
                     ? "Procesando..."
                     : `Confirmar y Pagar ${fmtCOP(total)}`}
                 </button>

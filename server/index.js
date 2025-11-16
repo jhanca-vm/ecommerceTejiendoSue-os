@@ -496,6 +496,7 @@ const cartRoutes = require("./routes/cartRoutes");
 const favoriteRoutes = require("./routes/favoriteRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const adminAlertsRoutes = require("./routes/adminAlerts");
+const wompiRoutes = require("./routes/wompiRoutes");
 
 // Healthcheck
 app.get("/health", (_req, res) =>
@@ -518,6 +519,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/admin/alerts", adminAlertsRoutes);
+app.use("/api/wompi", wompiRoutes);
 
 // ========= Scheduler  =========
 initScheduler(app);

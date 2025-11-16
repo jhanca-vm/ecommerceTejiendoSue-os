@@ -4,8 +4,8 @@ import { useLocation, useNavigate, Link } from "react-router-dom";
 import { AuthContext } from "../../contexts/AuthContext";
 import { CartContext } from "../../contexts/CartContext"; // Para limpiar el carrito
 import { useToast } from "../../contexts/ToastContext";
+import useWompi from "../../hooks/useWompi";
 import apiUrl, { getBaseUrl } from "../../api/apiClient";
-import { buildWhatsAppUrl } from "../../utils/whatsapp";
 import SuccessOverlay from "../../blocks/SuccessOverlay";
 
 const ADMIN_WHATSAPP = "573147788069"; // Considera mover esto a una variable de entorno
@@ -130,7 +130,10 @@ export default function CheckoutPage() {
     error: itemsError,
   } = useEnrichedOrderItems(initialOrderItems);
 
-  // 3. Manejar errores o la ausencia de items
+  // 3. Usar el hook de Wompi
+  const { ref: wompiRef, loading: loadingWompi } = useWompi();
+
+  // 4. Manejar errores o la ausencia de items
   useEffect(() => {
     if (itemsError) {
       showToast(itemsError, "error");
@@ -165,59 +168,45 @@ export default function CheckoutPage() {
 
     setSubmitting(true);
     try {
-      const idem = crypto.randomUUID();
+      wompiRef.current.open(async ({ transaction }) => {
+        if (transaction) {
+          const idem = transaction.reference;
 
-      // Asegurarse de que los items enviados al backend solo contengan los IDs
-      const payloadItems = orderItems.map((item) => ({
-        product: item.product._id,
-        size: item.size,
-        color: item.color,
-        quantity: item.quantity,
-      }));
+          // Asegurarse de que los items enviados al backend solo contengan los IDs
+          const payloadItems = orderItems.map((item) => ({
+            product: item.product._id,
+            size: item.size,
+            color: item.color,
+            quantity: item.quantity,
+          }));
 
-      const { data } = await apiUrl.post(
-        `orders`,
-        {
-          items: payloadItems,
-          shippingInfo,
-          idempotencyKey: idem,
-          source: "checkout-page",
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Idempotency-Key": idem,
-          },
+          const { data } = await apiUrl.post(
+            `orders`,
+            {
+              items: payloadItems,
+              shippingInfo,
+              idempotencyKey: idem,
+              source: "checkout-page",
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Idempotency-Key": idem,
+              },
+            }
+          );
+
+          const order = data.order;
+          const humanCode = `${new Date(order.createdAt || Date.now())
+            .toISOString()
+            .slice(0, 10)
+            .replace(/-/g, "")}-${String(order._id).slice(-6).toUpperCase()}`;
+
+          clearCart();
+          setSuccess({ open: true, humanCode });
+          showToast(`Pedido creado: ${humanCode}`, "success");
         }
-      );
-
-      const order = data.order;
-      const humanCode = `${new Date(order.createdAt || Date.now())
-        .toISOString()
-        .slice(0, 10)
-        .replace(/-/g, "")}-${String(order._id).slice(-6).toUpperCase()}`;
-
-      // --- MODIFICACIÓN FUTURA (Punto 2 de tu solicitud) ---
-      // Aquí es donde, en el futuro, llamarías a tu backend para que envíe el mensaje de WhatsApp
-      // Por ahora, mantenemos el comportamiento actual.
-      const waUrl = buildWhatsAppUrl(
-        ADMIN_WHATSAPP,
-        order,
-        { name: user?.name, email: user?.email },
-        shippingInfo,
-        {
-          humanCode,
-          includeSKU: true,
-          includeVariant: true,
-          includeImages: true,
-        }
-      );
-      window.open(waUrl, "_blank", "noopener,noreferrer");
-      // --- FIN MODIFICACIÓN FUTURA ---
-
-      clearCart();
-      setSuccess({ open: true, humanCode });
-      showToast(`Pedido creado: ${humanCode}`, "success");
+      })
     } catch (err) {
       showToast(
         "Error al realizar el pedido: " +
@@ -229,8 +218,8 @@ export default function CheckoutPage() {
     }
   };
 
-  // Muestra un estado de carga mientras se enriquecen los productos
-  if (loadingItems) {
+  // Muestra un estado de carga mientras se cargan todos los datos necesarios
+  if (loadingItems || loadingWompi) {
     return (
       <div
         className="container"
@@ -259,7 +248,6 @@ export default function CheckoutPage() {
                   name="name"
                   value={shippingInfo.name}
                   onChange={handleChange}
-                  required
                 />
               </div>
               <div className="form-group">
@@ -270,7 +258,6 @@ export default function CheckoutPage() {
                   name="address"
                   value={shippingInfo.address}
                   onChange={handleChange}
-                  required
                 />
               </div>
               <div className="form-group">
@@ -281,7 +268,6 @@ export default function CheckoutPage() {
                   name="city"
                   value={shippingInfo.city}
                   onChange={handleChange}
-                  required
                 />
               </div>
               <div className="form-group">
@@ -292,7 +278,6 @@ export default function CheckoutPage() {
                   name="department"
                   value={shippingInfo.department}
                   onChange={handleChange}
-                  required
                 />
               </div>
               <div className="form-group">
@@ -303,7 +288,6 @@ export default function CheckoutPage() {
                   name="phone"
                   value={shippingInfo.phone}
                   onChange={handleChange}
-                  required
                 />
               </div>
               <div className="form-group">
